@@ -1,0 +1,21 @@
+# Large files
+*.tar
+*.tar.gz
+*.zip
+init-scripts/init.sql
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo 
+prompthistory/
+
+# Git
+.gitignore
+
+# Docker
+# .dockerignore
+
+# env files
+.env.local

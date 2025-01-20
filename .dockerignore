@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+*.md
+docker-compose.yml
+Dockerfile
+Dockerfile.db
+.dockerignore
+postgres_data
+*.tar
+*.tar.gz
+*.zip
