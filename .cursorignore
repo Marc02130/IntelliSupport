@@ -19,3 +19,7 @@ prompthistory/
 
 # env files
 .env.local
+
+# Requirements
+requirements/
+requirements/*.* 

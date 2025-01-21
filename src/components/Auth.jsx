@@ -35,9 +35,16 @@ export default function Auth({ recoveryMode = false }) {
           window.location.href = '/' // Redirect to home/login page
         } else {
           // We're requesting a password reset email
-          const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}`
+          console.log('Attempting password reset for:', email)
+          const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/auth/callback`,
+            options: {
+              data: {
+                email: email  // Add user context
+              }
+            }
           })
+          console.log('Password reset response:', { data, error })
           if (error) throw error
           alert('Check your email for the password reset link!')
           setIsResetPassword(false)

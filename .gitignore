@@ -35,3 +35,7 @@ docker-compose.yaml
 
 # Supabase
 supabase/
+
+# Requirements
+requirements/
+requirements/*.* 

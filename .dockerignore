@@ -10,3 +10,8 @@ postgres_data
 *.tar
 *.tar.gz
 *.zip
+
+
+# Requirements
+requirements/
+requirements/*.* 
