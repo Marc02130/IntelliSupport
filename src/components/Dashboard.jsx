@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import Header from './Header'
 import Sidebar from './Sidebar'
@@ -6,6 +7,33 @@ import DashboardBody from './DashboardBody'
 
 export default function Dashboard({ session }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [queryId, setQueryId] = useState(null)
+  const [mode, setMode] = useState('dashboard') // 'dashboard', 'list', or 'record'
+  const [recordId, setRecordId] = useState(null)
+  const location = useLocation()
+  const params = useParams()
+
+  // Log when component renders
+  console.log('Dashboard rendering with params:', params, 'pathname:', location.pathname)
+
+  // Handle URL parameters and location state changes
+  useEffect(() => {
+    const path = location.pathname
+    
+    if (path.startsWith('/datarecord/')) {
+      setQueryId(params.queryId)
+      setMode('record')
+      setRecordId(params.recordId || 'add')
+    } else if (path.startsWith('/list/')) {
+      setQueryId(params.queryId)
+      setMode('list')
+      setRecordId(null)
+    } else {
+      setMode('dashboard')
+      setQueryId(null)
+      setRecordId(null)
+    }
+  }, [location, params])
 
   // Get full name from user metadata
   const fullName = session.user.user_metadata?.full_name || session.user.email
@@ -23,6 +51,7 @@ export default function Dashboard({ session }) {
       <Sidebar 
         isSidebarCollapsed={isSidebarCollapsed}
         setIsSidebarCollapsed={setIsSidebarCollapsed}
+        userRole={userRole}
       />
       <main className="main-content">
         <Header 
@@ -33,6 +62,9 @@ export default function Dashboard({ session }) {
         <DashboardBody 
           userRole={userRole}
           userId={session.user.id}
+          queryId={queryId}
+          mode={mode}
+          recordId={recordId}
         />
       </main>
     </div>

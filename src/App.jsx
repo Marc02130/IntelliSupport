@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabaseClient'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
@@ -38,7 +39,18 @@ function App() {
     return <Auth />
   }
 
-  return <Dashboard session={session} />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Dashboard session={session} />} />
+        <Route path="/list/:queryId" element={<Dashboard session={session} />} />
+        <Route path="/datarecord/:queryId/:recordId/edit" element={<Dashboard session={session} />} />
+        <Route path="/datarecord/:queryId/add" element={<Dashboard session={session} />} />
+        <Route path="/admin/*" element={<Dashboard session={session} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default App
