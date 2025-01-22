@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import {
@@ -11,25 +11,99 @@ import {
 } from '@tanstack/react-table'
 
 export default function SearchTable({ 
-  data = [], 
-  columns = [], 
   queryId,
   onRowDoubleClick, 
   onAdd 
 }) {
-  console.log('SearchTable render:', { 
-    dataLength: data?.length,
-    columnCount: columns?.length,
-    columns,
-    queryId
-  })
+  const [queryDef, setQueryDef] = useState(null)
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const [sorting, setSorting] = useState([])
   const [globalFilter, setGlobalFilter] = useState('')
   const navigate = useNavigate()
 
+  useEffect(() => {
+    let mounted = true
+    
+    async function loadData() {
+      if (!queryId) {
+        setError('No query ID provided')
+        setLoading(false)
+        return
+      }
+      
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Load query definition
+        const queryResult = await supabase
+          .from('search_queries')
+          .select('*')
+          .eq('id', queryId)
+          .single()
+
+        if (queryResult.error) throw new Error(`Database error: ${queryResult.error.message}`)
+
+        const queryData = queryResult.data
+        if (!queryData) throw new Error('No query definition found')
+
+        // Validate column definitions
+        if (!queryData.column_definitions || !Array.isArray(queryData.column_definitions)) {
+          throw new Error('Invalid or missing column definitions')
+        }
+
+        // Process column definitions
+        const processedColumns = queryData.column_definitions.map(col => ({
+          ...col,
+          id: col.accessorKey || col.id || col.header
+        }))
+
+        // Load the actual data
+        let dataQuery = supabase.from(queryData.base_table)
+        
+        if (queryData.query_definition.select) {
+          dataQuery = dataQuery.select(queryData.query_definition.select)
+        }
+        
+        if (queryData.query_definition.orderBy) {
+          for (const order of queryData.query_definition.orderBy) {
+            dataQuery = dataQuery.order(order.id, { ascending: !order.desc })
+          }
+        }
+
+        const dataResult = await dataQuery
+        if (dataResult.error) throw new Error(`Data query error: ${dataResult.error.message}`)
+
+        if (mounted) {
+          setQueryDef({
+            ...queryData,
+            column_definitions: processedColumns
+          })
+          setData(dataResult.data || [])
+          setLoading(false)
+          setError(null)
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || 'An unexpected error occurred')
+          setLoading(false)
+          setData([])
+          setQueryDef(null)
+        }
+      }
+    }
+
+    loadData()
+    return () => { mounted = false }
+  }, [queryId])
+
   // Memoize the table columns to prevent unnecessary re-renders
   const tableColumns = useMemo(() => {
+    if (!queryDef) return [] // Return empty array if queryDef is not loaded yet
+
     // Add edit button column as the first column
     const editColumn = {
       id: 'edit',
@@ -47,7 +121,7 @@ export default function SearchTable({
     }
 
     // Process the remaining columns
-    const processedColumns = columns.map(col => {
+    const processedColumns = queryDef.column_definitions.map(col => {
       // Skip Actions column
       if (col.header === 'Actions') return null
 
@@ -95,11 +169,11 @@ export default function SearchTable({
 
     // Return edit column first, followed by other columns
     return [editColumn, ...processedColumns]
-  }, [columns, navigate])
+  }, [queryDef, queryId, navigate]) // Added queryId to dependencies
 
   // Memoize the table instance
   const table = useReactTable({
-    data,
+    data: data || [], // Provide empty array as fallback
     columns: tableColumns,
     state: {
       sorting,
@@ -130,18 +204,26 @@ export default function SearchTable({
     }
   }
 
-  if (!data.length || !columns.length) {
+  if (loading) {
     return (
-      <div className="search-table empty">
+      <div className="loading-spinner">Loading...</div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="error-message">
+        <h3>Error Loading Data</h3>
+        <p>{error}</p>
+        <button onClick={() => setLoading(true)}>Retry</button>
+      </div>
+    )
+  }
+
+  if (!queryDef || !data) {
+    return (
+      <div className="error-message">
         <p>No data available</p>
-        {onAdd && (
-          <button 
-            onClick={() => navigate(`/datarecord/${queryId}/add`)} 
-            className="add-button"
-          >
-            Add New
-          </button>
-        )}
       </div>
     )
   }
