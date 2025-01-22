@@ -10,6 +10,7 @@ export default function DataRecord({ queryId, recordId, mode }) {
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
   const navigate = useNavigate()
+  const [childQueries, setChildQueries] = useState([])
 
   // Load query definition and record data
   useEffect(() => {
@@ -70,6 +71,25 @@ export default function DataRecord({ queryId, recordId, mode }) {
     loadData()
     return () => { mounted = false }
   }, [queryId, recordId, mode])
+
+  useEffect(() => {
+    async function loadChildQueries() {
+      try {
+        const { data, error } = await supabase
+          .from('search_queries')
+          .select('*')
+          .eq('parent_query_id', queryId)
+          .order('name')
+
+        if (error) throw error
+        setChildQueries(data || [])
+      } catch (err) {
+        console.error('Error loading child queries:', err)
+      }
+    }
+
+    loadChildQueries()
+  }, [queryId])
 
   const handleInputChange = (field, value) => {
     setErrors(prev => ({ ...prev, [field]: null }))
@@ -326,35 +346,42 @@ export default function DataRecord({ queryId, recordId, mode }) {
         </div>
       </div>
 
-      {/* Related Tables Section */}
-      {!mode === 'add' && relatedTables.map(table => (
-        <div key={table.name} className="related-table">
-          <h3>{table.title}</h3>
-          <SearchTable
-            data={table.data}
-            columns={table.columns}
-          />
-        </div>
-      ))}
+      {/* Related data tables section */}
+      <div className="related-data-sections">
+        {mode !== 'add' && !loading && childQueries.map(query => (
+          <div key={query.id} className="related-data-section">
+            <h3>{query.name}</h3>
+            <SearchTable
+              queryId={query.id}
+              parentRecord={formData}
+              onRowDoubleClick={(row) => {
+                console.log('Related record clicked:', row)
+              }}
+            />
+          </div>
+        ))}
+      </div>
 
       <style jsx>{`
         .data-record {
           display: flex;
           flex-direction: column;
           height: 100%;
+          overflow: hidden; /* Prevent double scrollbars */
         }
 
         .data-record-content {
           flex: 1;
           display: flex;
           flex-direction: column;
-          overflow: auto;
+          min-height: 400px; /* Important for Firefox */
         }
 
         .data-record-main {
           flex: 1;
           padding: 20px;
-          overflow: auto;
+          overflow-y: auto; /* Enable vertical scrolling */
+          overflow-x: hidden; /* Hide horizontal scrolling */
         }
 
         .data-record-footer {
@@ -364,6 +391,29 @@ export default function DataRecord({ queryId, recordId, mode }) {
           padding: 20px;
           border-top: 1px solid #eee;
           box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+          z-index: 10;
+        }
+
+        .related-data-sections {
+          overflow-x: auto;
+          overflow-y: auto;
+          flex: 1;
+          padding: 20px;
+          border-top: 1px solid #eee;
+          background: #f9f9f9;
+        }
+
+        .related-data-section {
+          margin-bottom: 30px;
+        }
+
+        .related-data-section:last-child {
+          margin-bottom: 0;
+        }
+
+        .related-data-section h3 {
+          margin: 0 0 15px 0;
+          color: #333;
         }
 
         .form-field {

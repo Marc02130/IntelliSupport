@@ -12,6 +12,9 @@ import {
 
 export default function SearchTable({ 
   queryId,
+  parentRecord,
+  relationshipType,
+  relationshipConfig,
   onRowDoubleClick, 
   onAdd 
 }) {
@@ -23,6 +26,26 @@ export default function SearchTable({
   const [sorting, setSorting] = useState([])
   const [globalFilter, setGlobalFilter] = useState('')
   const navigate = useNavigate()
+
+  // Add the processColumns function
+  const processColumns = (columns) => {
+    if (!columns || !Array.isArray(columns)) {
+      console.error('Invalid column definitions:', columns)
+      return []
+    }
+
+    return columns.map(col => ({
+      ...col,
+      id: col.accessorKey || col.id || col.header,
+      // Add any additional column processing here
+      cell: col.cell || (info => {
+        const value = info.getValue()
+        if (value === null || value === undefined) return ''
+        if (typeof value === 'object') return JSON.stringify(value)
+        return String(value)
+      })
+    }))
+  }
 
   useEffect(() => {
     let mounted = true
@@ -50,43 +73,80 @@ export default function SearchTable({
         const queryData = queryResult.data
         if (!queryData) throw new Error('No query definition found')
 
-        // Validate column definitions
-        if (!queryData.column_definitions || !Array.isArray(queryData.column_definitions)) {
-          throw new Error('Invalid or missing column definitions')
-        }
-
-        // Process column definitions
-        const processedColumns = queryData.column_definitions.map(col => ({
-          ...col,
-          id: col.accessorKey || col.id || col.header
-        }))
-
-        // Load the actual data
+        // Build data query based on relationship type
         let dataQuery = supabase.from(queryData.base_table)
+        let selectQuery = queryData.query_definition.select || '*'
         
-        if (queryData.query_definition.select) {
-          dataQuery = dataQuery.select(queryData.query_definition.select)
+        if (parentRecord && queryData.relationship_type) {
+          console.log('Building relationship query:', {
+            type: queryData.relationship_type,
+            parentId: parentRecord.id,
+            joinTable: queryData.relationship_join_table,
+            localKey: queryData.relationship_local_key,
+            foreignKey: queryData.relationship_foreign_key
+          })
+
+          if (queryData.relationship_type === 'many_to_many') {
+            // For many-to-many, first get the related IDs through the junction table
+            const { data: junctionData, error: junctionError } = await supabase
+              .from(queryData.relationship_join_table)
+              .select('user_id')
+              .eq(queryData.relationship_local_key, parentRecord.id);
+
+            if (junctionError) throw new Error(`Junction table error: ${junctionError.message}`);
+
+            const relatedIds = junctionData.map(record => record.user_id);
+
+            // Then query the main table with those IDs
+            dataQuery = dataQuery
+              .select(selectQuery)
+              .in('id', relatedIds);
+          } else if (queryData.relationship_type === 'one_to_many') {
+            dataQuery = dataQuery
+              .select(selectQuery)
+              .eq(queryData.relationship_foreign_key, parentRecord.id);
+          }
+        } else {
+          // Handle foreign key relationships in the select query
+          if (selectQuery.includes('(')) {
+            // Query includes foreign key relationships
+            dataQuery = dataQuery.select(selectQuery)
+          } else {
+            dataQuery = dataQuery.select(selectQuery)
+          }
         }
         
+        // Apply any additional query configuration
         if (queryData.query_definition.orderBy) {
           for (const order of queryData.query_definition.orderBy) {
             dataQuery = dataQuery.order(order.id, { ascending: !order.desc })
           }
         }
 
+        console.log('Executing query for table:', queryData.base_table, 'with select:', selectQuery)
         const dataResult = await dataQuery
-        if (dataResult.error) throw new Error(`Data query error: ${dataResult.error.message}`)
+        
+        if (dataResult.error) {
+          console.error('Query error:', dataResult.error)
+          throw new Error(`Data query error: ${dataResult.error.message}`)
+        }
+
+        console.log('Query results:', {
+          count: dataResult.data?.length,
+          firstRow: dataResult.data?.[0]
+        })
 
         if (mounted) {
           setQueryDef({
             ...queryData,
-            column_definitions: processedColumns
+            column_definitions: processColumns(queryData.column_definitions)
           })
           setData(dataResult.data || [])
           setLoading(false)
           setError(null)
         }
       } catch (err) {
+        console.error('Error in loadData:', err)
         if (mounted) {
           setError(err.message || 'An unexpected error occurred')
           setLoading(false)
@@ -98,7 +158,7 @@ export default function SearchTable({
 
     loadData()
     return () => { mounted = false }
-  }, [queryId])
+  }, [queryId, parentRecord])
 
   // Memoize the table columns to prevent unnecessary re-renders
   const tableColumns = useMemo(() => {
