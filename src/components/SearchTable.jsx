@@ -162,14 +162,18 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
           key !== 'updated_at' &&
           !key.includes(':') && // Exclude joined fields (they have colons)
           !key.includes('_name') && // Exclude computed name fields
-          !key.includes('tag_name') // Specifically exclude tag_name
+          !key.includes('tag_name') && // Specifically exclude tag_name
+          !key.includes('user_domain') && // Exclude the problematic field
+          record[key] !== null // Exclude null values
         )
         
         console.log('Deleting with keys:', keys.map(k => `${k}: ${record[k]}`))
         
-        // Apply each key to the query
+        // Apply each key to the query, with additional null check
         keys.forEach(key => {
-          query = query.eq(key, record[key])
+          if (record[key] !== null && record[key] !== undefined) {
+            query = query.eq(key, record[key])
+          }
         })
       } else {
         // Regular table with id column
@@ -183,6 +187,7 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
       await loadData(queryDef)
     } catch (err) {
       console.error('Error deleting record:', err)
+      setError(err.message)
     }
   }
 

@@ -39,8 +39,7 @@ export default function DataRecord() {
     async function loadData() {
       try {
         setLoading(true)
-        setError(null)
-
+        
         // Load query definition
         const { data: queryData, error: queryError } = await supabase
           .from('search_queries')
@@ -73,7 +72,6 @@ export default function DataRecord() {
 
           if (childQueryError) throw new Error(`Child query load error: ${childQueryError.message}`)
           if (childQueryData) {
-            // Extract the child query data from the relationships
             const childQueries = childQueryData.map(rel => rel.child_search_query)
             setChildQueries(childQueries)
           }
@@ -81,7 +79,6 @@ export default function DataRecord() {
 
         // If in edit mode, load the record data
         if (mode === 'edit' && recordId) {
-          // Get the fields we need from column definitions, excluding computed fields
           const fields = queryData.column_definitions
             .filter(col => !col.hidden && col.type !== 'computed')
             .map(col => col.accessorKey)
@@ -100,6 +97,11 @@ export default function DataRecord() {
           if (mounted) {
             setFormData(recordData)
           }
+        } else if (mode === 'add' && parentId && parentField) {
+          // Initialize form data with parent context for child records
+          setFormData({
+            [parentField]: parentId
+          })
         }
 
         if (mounted) {
@@ -117,7 +119,7 @@ export default function DataRecord() {
 
     loadData()
     return () => { mounted = false }
-  }, [queryId, recordId, mode])
+  }, [queryId, recordId, mode, parentId, parentField])
 
   // Add this effect to load foreign key options
   useEffect(() => {
@@ -543,13 +545,14 @@ export default function DataRecord() {
         </div>
       )}
 
-      {activeTab === 'details' && (
+      {/* Show form always in add mode, or when in details tab for edit mode */}
+      {(mode === 'add' || activeTab === 'details') && (
         <div className="form">
           {queryDef.column_definitions
             .filter(col => 
               !col.hidden && 
               col.accessorKey !== 'id' && 
-              col.type !== 'computed'  // Ignore all computed fields
+              col.type !== 'computed'
             )
             .map(column => (
               <div key={column.accessorKey} className="form-field">
@@ -581,24 +584,29 @@ export default function DataRecord() {
         </div>
       )}
 
-      {activeTab === 'related' && childQueries.length > 0 && (
-        <div className="child-tables">
-          {childQueries.map(childQuery => (
-            <div key={childQuery.id} className="child-table">
-              <h3>{childQuery.name}</h3>
-              <SearchTable 
-                queryId={childQuery.id} 
-                parentId={recordId}
-                parentField={childQuery.parent_field}
-                parentQueryId={queryId}
-              />
+      {/* Only show these in edit mode */}
+      {mode === 'edit' && (
+        <>
+          {activeTab === 'related' && childQueries.length > 0 && (
+            <div className="child-tables">
+              {childQueries.map(childQuery => (
+                <div key={childQuery.id} className="child-table">
+                  <h3>{childQuery.name}</h3>
+                  <SearchTable 
+                    queryId={childQuery.id} 
+                    parentId={recordId}
+                    parentField={childQuery.parent_field}
+                    parentQueryId={queryId}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {activeTab === 'attachments' && (
-        <AttachmentsTab recordId={recordId} type="ticket" />
+          {activeTab === 'attachments' && (
+            <AttachmentsTab recordId={recordId} type="ticket" />
+          )}
+        </>
       )}
 
       <style>
