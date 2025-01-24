@@ -8,9 +8,12 @@ frontend:
       commands:
         - npm run build
   artifacts:
-    baseDirectory: dist
+    baseDirectory: build    # Changed from 'dist' to 'build'
     files:
       - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
   customHeaders:
     - pattern: '**/*'
       headers:
