@@ -56,17 +56,16 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+    user_organization TEXT;
 BEGIN
+    -- Get user's organization name
+    SELECT o.name INTO user_organization
+    FROM users u
+    JOIN organizations o ON o.id = u.organization_id
+    WHERE u.id = auth.uid();
+
     RETURN QUERY
-    WITH RECURSIVE user_permissions AS (
-        -- Get all permissions for the user's role
-        SELECT DISTINCT p.name::text AS permission_name
-        FROM auth.users u
-        JOIN roles r ON r.name = (u.raw_user_meta_data->>'role')::text
-        JOIN role_permissions rp ON rp.role_id = r.id
-        JOIN permissions p ON p.id = rp.permission_id
-        WHERE u.id = auth.uid()
-    )
     SELECT DISTINCT
         n.id::UUID,
         n.name::TEXT,
@@ -81,16 +80,23 @@ BEGIN
     FROM sidebar_navigation n
     WHERE n.is_active = true
     AND (
-        -- Check if user has ANY of the required permissions
-        EXISTS (
-            SELECT 1 FROM user_permissions up 
-            WHERE up.permission_name = ANY(n.permissions_required::text[])
-        )
+        -- For "New User" organization, only show dashboard
+        (user_organization = 'New User' AND n.url = '/') -- Only show dashboard
         OR
-        -- Or if no permissions are required
-        n.permissions_required IS NULL 
-        OR 
-        array_length(n.permissions_required, 1) IS NULL
+        -- For other organizations, show based on permissions
+        (user_organization != 'New User' AND EXISTS (
+            SELECT 1 
+            FROM auth.users u
+            JOIN roles r ON r.name = (u.raw_user_meta_data->>'role')::text
+            JOIN role_permissions rp ON rp.role_id = r.id
+            JOIN permissions p ON p.id = rp.permission_id
+            WHERE u.id = auth.uid()
+            AND (
+                p.name = ANY(n.permissions_required)
+                OR n.permissions_required IS NULL 
+                OR array_length(n.permissions_required, 1) IS NULL
+            )
+        ))
     )
     ORDER BY n.sort_order;
 END;
@@ -124,18 +130,26 @@ CREATE TRIGGER set_comment_author_trigger
     FOR EACH ROW
     EXECUTE FUNCTION set_comment_author();
 
--- Add trigger to set organization_id on ticket creation
+-- Function to set ticket organization from requester
 CREATE OR REPLACE FUNCTION set_ticket_organization()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
+    -- Set organization_id from requester's organization
     NEW.organization_id := (
         SELECT organization_id 
-        FROM public.users 
+        FROM users 
         WHERE id = NEW.requester_id
     );
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Create trigger to set organization on ticket creation
+DROP TRIGGER IF EXISTS set_ticket_organization_trigger ON tickets;
 
 CREATE TRIGGER set_ticket_organization_trigger
     BEFORE INSERT ON tickets

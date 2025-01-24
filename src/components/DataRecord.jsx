@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import SearchTable from './SearchTable'
+import CommentTemplateSelector from './CommentTemplateSelector'
+import JSONEditor from 'react-json-editor-ajrm/es'
+import locale from 'react-json-editor-ajrm/locale/en'
 
 export default function DataRecord() {
   const { queryId, recordId } = useParams()
@@ -22,6 +25,10 @@ export default function DataRecord() {
 
   // Add this state for JSON validation errors
   const [jsonErrors, setJsonErrors] = useState({})
+
+  // Add state for template selector modal
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
+  const [activeSelectorField, setActiveSelectorField] = useState(null)
 
   // Load query definition and record data
   useEffect(() => {
@@ -174,6 +181,10 @@ export default function DataRecord() {
     
     setLoading(true)
     try {
+      // Debug logging
+      console.log('Form data before save:', formData)
+      console.log('Query definition:', queryDef)
+
       // Only include fields that are defined in column_definitions
       const cleanedData = {}
       queryDef.column_definitions
@@ -182,13 +193,19 @@ export default function DataRecord() {
           // Get value from form data
           const value = formData[col.accessorKey]
           
+          // Debug logging
+          console.log(`Processing field ${col.accessorKey}:`, value)
+          
           // Handle foreign key fields and empty strings
-          if (col.foreignKey && (value === '' || value === undefined || value?.startsWith('Select '))) {
+          if (value === '') {
             cleanedData[col.accessorKey] = null
           } else {
             cleanedData[col.accessorKey] = value
           }
         })
+
+      // Debug logging
+      console.log('Cleaned data for save:', cleanedData)
 
       // Add parent relationship if this is a child record
       if (mode === 'add' && parentId && parentField) {
@@ -246,7 +263,73 @@ export default function DataRecord() {
            (mode === 'add' && column.disableOnAdd);
   };
 
+  // Add function to handle template selection
+  const handleTemplateSelect = (template) => {
+    if (activeSelectorField) {
+      // Append template to existing content or set as new content
+      const currentContent = formData[activeSelectorField] || '';
+      const newContent = currentContent ? `${currentContent}\n\n${template.content}` : template.content;
+      
+      // Update the content
+      handleInputChange(activeSelectorField, newContent);
+      
+      // If template is private, set the is_private field to true
+      if (template.is_private) {
+        handleInputChange('is_private', true);
+      }
+      
+      setShowTemplateSelector(false);
+    }
+  };
+
   const renderField = (column) => {
+    // Special handling for ticket comments content field
+    if (queryDef.base_table === 'ticket_comments' && column.accessorKey === 'content') {
+      return (
+        <div className="relative">
+          <textarea
+            id={column.accessorKey}
+            name={column.accessorKey}
+            value={formData[column.accessorKey] || ''}
+            onChange={(e) => handleInputChange(column.accessorKey, e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+            rows={5}
+            disabled={isDisabled(column)}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSelectorField(column.accessorKey);
+              setShowTemplateSelector(true);
+            }}
+            className="absolute top-2 right-2 px-2 py-1 text-sm bg-indigo-500 text-white rounded hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            📝 Templates
+          </button>
+          
+          {/* Template selector modal */}
+          {showTemplateSelector && activeSelectorField === column.accessorKey && (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium">Select Template</h3>
+                  <button
+                    onClick={() => setShowTemplateSelector(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <CommentTemplateSelector 
+                  onSelect={(template) => handleTemplateSelect(template)} 
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     // Only add disabled prop if it's explicitly true
     const disabledProps = column.disabled === true ? {
       disabled: true,
@@ -326,39 +409,90 @@ export default function DataRecord() {
 
     // Add special handling for JSON type fields
     if (column.type === 'json') {
+      const jsonValue = formData[column.accessorKey] || {};
+      
       return (
         <div>
-          <textarea
+          <JSONEditor
             id={column.accessorKey}
-            name={column.accessorKey}
-            value={formData[column.accessorKey] ? JSON.stringify(formData[column.accessorKey], null, 2) : ''}
-            onChange={(e) => {
-              try {
-                // Try to parse as JSON to validate
-                const jsonValue = e.target.value ? JSON.parse(e.target.value) : null;
-                handleInputChange(column.accessorKey, jsonValue);
-                // Clear error if parse succeeds
-                setJsonErrors(prev => ({ ...prev, [column.accessorKey]: null }));
-              } catch (err) {
-                // Store the error message
-                const errorMessage = `Invalid JSON: ${err.message}`;
-                setJsonErrors(prev => ({ ...prev, [column.accessorKey]: errorMessage }));
-                // Store the raw input
-                handleInputChange(column.accessorKey, e.target.value);
+            placeholder={jsonValue}
+            locale={locale}
+            height="200px"
+            width="100%"
+            onBlur={(value) => {
+              if (value.error) {
+                setJsonErrors(prev => ({ 
+                  ...prev, 
+                  [column.accessorKey]: value.error.reason 
+                }));
+              } else {
+                try {
+                  const parsedJson = value.jsObject || null;
+                  handleInputChange(column.accessorKey, parsedJson);
+                  setJsonErrors(prev => ({ 
+                    ...prev, 
+                    [column.accessorKey]: null 
+                  }));
+                } catch (err) {
+                  setJsonErrors(prev => ({ 
+                    ...prev, 
+                    [column.accessorKey]: `Invalid JSON: ${err.message}` 
+                  }));
+                }
               }
             }}
-            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 
-              ${jsonErrors[column.accessorKey] 
-                ? 'border-red-500 focus:border-red-500' 
-                : 'border-gray-300 focus:border-indigo-500'}`}
-            rows={10}
-            disabled={isDisabled(column)}
+            viewOnly={isDisabled(column)}
+            theme="light_mitsuketa_tribute"
+            colors={{
+              default: '#000000',
+              background: '#ffffff',
+              background_warning: '#fef3c7',
+              string: '#22863a',
+              number: '#005cc5',
+              colon: '#000000',
+              keys: '#d73a49',
+              keys_whiteSpace: '#af00db',
+              primitive: '#6f42c1'
+            }}
+            style={{
+              container: {
+                borderRadius: '0.375rem',
+                border: jsonErrors[column.accessorKey] 
+                  ? '2px solid #ef4444' 
+                  : '1px solid #d1d5db'
+              },
+              body: {
+                fontSize: '0.875rem'
+              }
+            }}
           />
           {jsonErrors[column.accessorKey] && (
             <div className="text-red-500 text-sm mt-1">
               {jsonErrors[column.accessorKey]}
             </div>
           )}
+        </div>
+      );
+    }
+
+    // Add handling for template selector
+    if (column.templateSelector) {
+      return (
+        <div>
+          <textarea
+            id={column.accessorKey}
+            name={column.accessorKey}
+            value={formData[column.accessorKey] || ''}
+            onChange={(e) => handleInputChange(column.accessorKey, e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+            rows={5}
+            disabled={isDisabled(column)}
+          />
+          <div className="mt-2">
+            <CommentTemplateSelector 
+              onSelect={(template) => handleTemplateSelect(template)} 
+            />
+          </div>
         </div>
       );
     }

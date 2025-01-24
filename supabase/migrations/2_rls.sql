@@ -1,62 +1,134 @@
--- Enable Row Level Security (RLS)
-ALTER TABLE public.knowledge_domain ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_knowledge_domain ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ticket_tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
-
--- Disable RLS for permissions and roles
-ALTER TABLE public.search_queries DISABLE ROW LEVEL SECURITY;
-
--- ALTER TABLE public.permissions DISABLE ROW LEVEL SECURITY;
-
--- ALTER TABLE public.roles DISABLE ROW LEVEL SECURITY;
-
--- ALTER TABLE public.role_permissions DISABLE ROW LEVEL SECURITY;
-
--- Drop any existing policies
-DROP POLICY IF EXISTS "Users can view permissions" ON public.permissions;
-
-DROP POLICY IF EXISTS "Users can view roles" ON public.roles;
-
-DROP POLICY IF EXISTS "Admins can manage role permissions" ON public.role_permissions;
-
--- Set up basic RLS policies
+-- Enable access to schema
+GRANT USAGE ON SCHEMA public TO authenticated;
 -- -------------------------- Auth Users --------------------------
+-- Drop ALL existing policies
+DROP POLICY IF EXISTS "Users can read own user data" ON auth.users;
+
 -- First, ensure authenticated users can read the auth.users table (but only their own record)
 CREATE POLICY "Users can read own user data" ON auth.users
     FOR SELECT
     USING (auth.uid() = id);
 
+-- -------------------------- Search Queries --------------------------
+-- Drop ALL existing policies
+DROP POLICY IF EXISTS "admin_full_access" ON public.search_queries;
+DROP POLICY IF EXISTS "search_queries_read_policy" ON public.search_queries;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.search_queries TO authenticated;
+
+-- enable RLS
+ALTER TABLE "public"."search_queries" ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "search_queries_read_policy" ON "public"."search_queries"
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "admin_full_access" ON "public"."search_queries"
+FOR ALL
+TO authenticated
+USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
+WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
+-- -------------------------- Search Queries Relationships ---------------
+-- Drop ALL existing policies
+DROP POLICY IF EXISTS "search_query_relationships_admin_full_access" ON public.search_query_relationships;
+DROP POLICY IF EXISTS "search_query_relationships_read_policy" ON public.search_query_relationships;
+
+-- enable RLS
+ALTER TABLE "public"."search_query_relationships" ENABLE ROW LEVEL SECURITY;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.search_query_relationships TO authenticated;
+
+CREATE POLICY "search_query_relationships_admin_full_access" 
+ON public.search_query_relationships
+AS PERMISSIVE FOR ALL
+TO authenticated
+USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
+WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
+CREATE POLICY "search_query_relationships_read_policy" 
+ON public.search_query_relationships
+AS PERMISSIVE FOR SELECT
+TO authenticated
+USING (true);
+
 -- -------------------------- Users --------------------------
--- Enable Row Level Security (RLS)
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+-- Drop ALL existing policies
+DROP POLICY IF EXISTS "Users can view own data and admins view all" ON public.users;
+DROP POLICY IF EXISTS "Admins can update users" ON public.users;
+DROP POLICY IF EXISTS "Users can update own data" ON public.users;
+
+-- enable RLS
+ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
 
 -- Users can read their own data and admins can read all data
 CREATE POLICY "Users can view own data and admins view all" ON public.users
     FOR SELECT
+    TO authenticated
     USING (
         auth.uid() = id OR 
         (auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin'
     );
 
--- Admins can update user data
+-- Admins can update all user data
 CREATE POLICY "Admins can update users" ON public.users
     FOR UPDATE
-    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
-    WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+    TO authenticated
+    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
 -- Users can update their own data
 CREATE POLICY "Users can update own data" ON public.users
     FOR UPDATE
-    USING (auth.uid() = id)
-    WITH CHECK (auth.uid() = id);
+    TO authenticated
+    USING (auth.uid() = id);
+
+
+-- -------------------------- Organizations --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view own organization" ON public.organizations;
+DROP POLICY IF EXISTS "Admins can manage organizations" ON public.organizations;
+
+-- enable RLS
+ALTER TABLE "public"."organizations" ENABLE ROW LEVEL SECURITY;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.organizations TO authenticated;
+
+-- Add RLS policies for organizations
+CREATE POLICY "Users can view own organization" ON public.organizations
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE organization_id = organizations.id 
+            AND id = auth.uid()
+        ) OR
+        ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
+    );
+
+CREATE POLICY "Admins can manage organizations" ON public.organizations
+    FOR ALL
+    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
+    WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
 -- -------------------------- Ticket Comments --------------------------
--- Enable Row Level Security (RLS)
-ALTER TABLE public.ticket_comments ENABLE ROW LEVEL SECURITY;
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can update own ticket comments" ON public.ticket_comments;
+DROP POLICY IF EXISTS "Users can delete own ticket comments" ON public.ticket_comments;
+DROP POLICY IF EXISTS "Users can insert ticket comments" ON public.ticket_comments;
+DROP POLICY IF EXISTS "Users can view ticket comments" ON public.ticket_comments;
+
+-- enable RLS
+ALTER TABLE "public"."ticket_comments" ENABLE ROW LEVEL SECURITY;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_comments TO authenticated;
 
 -- Policy for viewing ticket comments
 CREATE POLICY "Users can view ticket comments" ON ticket_comments
@@ -138,85 +210,15 @@ CREATE POLICY "Users can delete own ticket comments" ON ticket_comments
         )
     );
 
--- -------------------------- Organizations --------------------------
--- Drop any existing organization policies
-DROP POLICY IF EXISTS "Users can view own organization" ON public.organizations;
-DROP POLICY IF EXISTS "Admins can manage organizations" ON public.organizations;
-
--- Add RLS policies for organizations
-CREATE POLICY "Users can view own organization" ON public.organizations
-    FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.users 
-            WHERE organization_id = organizations.id 
-            AND id = auth.uid()
-        ) OR
-        (auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin'
-    );
-
-CREATE POLICY "Admins can manage organizations" ON public.organizations
-    FOR ALL
-    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
-    WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
-
--- -------------------------- Search Queries --------------------------
--- Drop existing policy if it exists
-DROP POLICY IF EXISTS "Users can view search queries they have permission for" ON public.search_queries;
-DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.search_queries;
-DROP POLICY IF EXISTS "Enable update for admins" ON public.search_queries;
-
--- RLS Policy
-CREATE POLICY "Users can view search queries they have permission for" ON public.search_queries
-    FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 
-            FROM public.role_permissions rp
-            JOIN public.permissions p ON p.id = rp.permission_id
-            JOIN auth.users au ON au.id = auth.uid()
-            WHERE au.raw_user_meta_data->>'role' IN (
-                SELECT name FROM public.roles r WHERE r.id = rp.role_id
-            )
-            AND p.name = ANY(permissions_required)
-        )
-    ); 
-
--- Update RLS policies to check is_active status
-CREATE POLICY "Enable read access for authenticated users" 
-ON public.search_queries
-FOR SELECT 
-TO authenticated
-USING (
-  is_active = true OR 
-  EXISTS (
-    SELECT 1 FROM auth.users 
-    WHERE id = auth.uid() 
-    AND raw_user_meta_data->>'role' = 'admin'
-  )
-);
-
--- Only admins can update search queries
-CREATE POLICY "Enable update for admins" 
-ON public.search_queries
-FOR UPDATE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM auth.users 
-    WHERE id = auth.uid() 
-    AND raw_user_meta_data->>'role' = 'admin'
-  )
-)
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM auth.users 
-    WHERE id = auth.uid() 
-    AND raw_user_meta_data->>'role' = 'admin'
-  )
-); 
-
 -- -------------------------- Permissions --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Enable read access for users and admins" ON public.permissions;
+DROP POLICY IF EXISTS "Enable write access for admins only" ON public.permissions;
+DROP POLICY IF EXISTS "Admins can manage permissions" ON public.permissions;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.permissions TO authenticated;
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
 
@@ -235,6 +237,14 @@ CREATE POLICY "Admins can manage permissions" ON public.permissions
     FOR ALL USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
 -- -------------------------- Roles --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Enable read access for users and admins" ON public.roles;
+DROP POLICY IF EXISTS "Enable write access for admins only" ON public.roles;
+DROP POLICY IF EXISTS "Admins can manage roles" ON public.roles;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.roles TO authenticated;
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 
@@ -253,19 +263,45 @@ CREATE POLICY "Admins can manage roles" ON public.roles
     FOR ALL USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
 -- -------------------------- Sidebar Navigation --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Authenticated users can view navigation items" ON public.sidebar_navigation;
+DROP POLICY IF EXISTS "Admins have full access to navigation items" ON public.sidebar_navigation;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sidebar_navigation TO authenticated;
+
 -- Enable RLS
 ALTER TABLE public.sidebar_navigation ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy
-DROP POLICY IF EXISTS "Users can view navigation items they have permission for" ON public.sidebar_navigation;
-
 CREATE POLICY "Authenticated users can view navigation items" ON public.sidebar_navigation
     FOR SELECT
     USING (auth.role() = 'authenticated');
 
+-- Admin override for all operations
+CREATE POLICY "Admins have full access to navigation items" ON public.sidebar_navigation
+    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
 -- -------------------------- Tickets --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view their tickets" ON public.tickets;
+DROP POLICY IF EXISTS "Users can create tickets" ON public.tickets;
+DROP POLICY IF EXISTS "Users can update their tickets" ON public.tickets;
+DROP POLICY IF EXISTS "Users can delete their tickets" ON public.tickets;
+DROP POLICY IF EXISTS "Admins have full access to tickets" ON public.tickets;
+DROP POLICY IF EXISTS "Users can view their organization's tickets" ON public.tickets;
+DROP POLICY IF EXISTS "Allow trigger to set organization during insert" ON public.tickets;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tickets TO authenticated;
+
 -- Enable RLS on tickets table
 ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+
+-- Allow trigger to set organization during insert
+CREATE POLICY "Allow trigger to set organization during insert" ON public.tickets
+    FOR INSERT
+    WITH CHECK (true);
 
 -- Only authenticated users can view tickets they're involved with
 CREATE POLICY "Users can view their tickets" ON public.tickets
@@ -323,11 +359,19 @@ CREATE POLICY "Users can delete their tickets" ON public.tickets
 CREATE POLICY "Admins have full access to tickets" ON public.tickets
     USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
--- -------------------------- Teams --------------------------
--- Enable Row Level Security (RLS)
-ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can manage teams" ON teams
+-- -------------------------- Teams --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Admins can manage teams" ON public.teams;
+DROP POLICY IF EXISTS "Users can view teams in their organization" ON public.teams;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.teams TO authenticated;
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage teams" ON public.teams
     FOR ALL
     USING (
         EXISTS (
@@ -337,17 +381,25 @@ CREATE POLICY "Admins can manage teams" ON teams
         )
     );
 
-CREATE POLICY "Users can view teams in their organization" ON teams
+CREATE POLICY "Users can view teams in their organization" ON public.teams
     FOR SELECT 
     USING (
         EXISTS (
             SELECT 1 FROM users 
             WHERE id = auth.uid() 
-            AND organization_id = teams.organization_id
+            AND organization_id = public.teams.organization_id
         )
     );
 
 -- -------------------------- Team Tags --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view team tags in their org and admins view all" ON public.team_tags;
+DROP POLICY IF EXISTS "Admins can manage team tags" ON public.team_tags;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.team_tags TO authenticated;
+
+-- Enable Row Level Security (RLS)
 ALTER TABLE team_tags ENABLE ROW LEVEL SECURITY;
 
 -- Users can view team tags in their organization and admins can view all
@@ -369,6 +421,14 @@ CREATE POLICY "Admins can manage team tags" ON team_tags
     USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
     WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
+-- -------------------------- Tags --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Allow authenticated users to read tags" ON public.tags;
+DROP POLICY IF EXISTS "Allow admins to manage tags" ON public.tags;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tags TO authenticated;
+
 -- Enable RLS for tags
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 
@@ -384,7 +444,17 @@ CREATE POLICY "Allow admins to manage tags" ON public.tags
     USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
     WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
--- Enable RLS for ticket_tags
+-- -------------------------- Ticket Tags --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Admins and agents can manage ticket tags" ON public.ticket_tags;
+DROP POLICY IF EXISTS "Users can manage tags on their own tickets" ON public.ticket_tags;
+DROP POLICY IF EXISTS "Users can view tags on organization tickets" ON public.ticket_tags;
+DROP POLICY IF EXISTS "Team members can manage ticket tags" ON public.ticket_tags;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_tags TO authenticated;
+
+-- Enable RLS
 ALTER TABLE public.ticket_tags ENABLE ROW LEVEL SECURITY;
 
 -- Allow admins and agents to manage all ticket tags
@@ -429,3 +499,173 @@ CREATE POLICY "Team members can manage ticket tags" ON public.ticket_tags
             AND tm.is_active = true
         )
     );
+
+-- -------------------------- Comment Templates --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view active comment templates" ON public.comment_templates;
+DROP POLICY IF EXISTS "Admins can manage comment templates" ON public.comment_templates;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.comment_templates TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.comment_templates ENABLE ROW LEVEL SECURITY;
+
+-- Policy for viewing comment templates
+CREATE POLICY "Users can view active comment templates" ON comment_templates
+    FOR SELECT TO authenticated
+    USING (is_active = true);
+
+-- Policy for managing comment templates (admin only)
+CREATE POLICY "Admins can manage comment templates" ON comment_templates
+    FOR ALL TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users u
+            WHERE u.id = auth.uid()
+            AND u.role = 'admin'
+        )
+    );
+
+-- -------------------------- Team Members --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Admins and Team Leads can manage team members" ON public.team_members;
+DROP POLICY IF EXISTS "Users can view team members" ON public.team_members;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.team_members TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+
+-- Admins and Team Leads can manage team members
+CREATE POLICY "Admins and Team Leads can manage team members" ON public.team_members
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM users u WHERE u.id = auth.uid() AND (u.role = 'admin' OR u.role = 'team_lead')
+        )
+    );
+
+-- Users can view team members in their organization
+CREATE POLICY "Users can view team members" ON public.team_members
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.organization_id = team_members.team_id
+        )
+    );  
+
+-- -------------------------- Audit Log  --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Authenticated can insert audit log" ON public.audit_log;
+DROP POLICY IF EXISTS "Authenticated can update audit log" ON public.audit_log;
+DROP POLICY IF EXISTS "Authenticated can view audit log" ON public.audit_log;
+DROP POLICY IF EXISTS "Allow trigger to insert audit log" ON public.audit_log;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE ON public.audit_log TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Allow all authenticated users to insert audit logs
+CREATE POLICY "Authenticated can insert audit log" ON public.audit_log
+    FOR INSERT TO authenticated
+    WITH CHECK (true);
+
+-- Allow trigger to insert audit logs
+CREATE POLICY "Allow trigger to insert audit log" ON public.audit_log
+    FOR INSERT
+    WITH CHECK (true);
+
+-- Allow all authenticated users to update audit logs
+CREATE POLICY "Authenticated can update audit log" ON public.audit_log
+    FOR UPDATE TO authenticated;
+
+-- Allow all authenticated users to view audit logs
+CREATE POLICY "Authenticated can view audit log" ON public.audit_log
+    FOR SELECT TO authenticated;
+
+-- -------------------------- Team Schedules  --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Admins and Team Leads can manage team schedules" ON public.team_schedules;
+DROP POLICY IF EXISTS "Users can view team schedules" ON public.team_schedules;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.team_schedules TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.team_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Admins and Team Leads can manage team schedules
+CREATE POLICY "Admins and Team Leads can manage team schedules" ON public.team_schedules
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM users u 
+            WHERE u.id = auth.uid() 
+            AND (u.role = 'admin' OR u.role = 'team_lead')
+        )
+    );
+
+-- Users can view schedules for teams in their organization
+CREATE POLICY "Users can view team schedules" ON public.team_schedules
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 
+            FROM users u
+            JOIN teams t ON t.organization_id = u.organization_id
+            WHERE u.id = auth.uid() 
+            AND t.id = team_schedules.team_id
+        )
+    );
+
+-- -------------------------- Knowledge Domain --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Authenticated users can view knowledge domains" ON public.knowledge_domain;
+DROP POLICY IF EXISTS "Admins can manage knowledge domains" ON public.knowledge_domain;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.knowledge_domain TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.knowledge_domain ENABLE ROW LEVEL SECURITY;
+
+-- Allow all authenticated users to view knowledge domains
+CREATE POLICY "Authenticated users can view knowledge domains" ON public.knowledge_domain
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Allow admins to manage knowledge domains
+CREATE POLICY "Admins can manage knowledge domains" ON public.knowledge_domain
+    FOR ALL
+    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
+    WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
+-- -------------------------- User Knowledge Domain --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Authenticated users can view user knowledge domains" ON public.user_knowledge_domain;
+DROP POLICY IF EXISTS "Admins can manage user knowledge domains" ON public.user_knowledge_domain;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_knowledge_domain TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.user_knowledge_domain ENABLE ROW LEVEL SECURITY;
+
+-- Allow all authenticated users to view user knowledge domains
+CREATE POLICY "Authenticated users can view user knowledge domains" ON public.user_knowledge_domain
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Allow admins to manage user knowledge domains
+CREATE POLICY "Admins can manage user knowledge domains" ON public.user_knowledge_domain
+    FOR ALL
+    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
+    WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
+

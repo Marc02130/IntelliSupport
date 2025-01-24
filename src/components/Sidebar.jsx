@@ -26,7 +26,7 @@ export default function Sidebar({ isSidebarCollapsed, setIsSidebarCollapsed, use
         // Load navigation items with error handling
         console.log('Fetching navigation data...')
         const { data, error } = await supabase
-          .rpc('get_user_navigation', { p_role: userRole })
+          .rpc('get_user_navigation')
 
         if (error) {
           console.error('Database error loading navigation:', error.message, error.details, error.hint)

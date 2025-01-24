@@ -41,3 +41,8 @@ supabase/.branches/
 # Requirements
 requirements/
 requirements/*.* 
+
+# amplify
+.amplify
+amplify_outputs*
+amplifyconfiguration*

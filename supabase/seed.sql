@@ -1626,7 +1626,6 @@ INSERT INTO search_queries (
     'sidebar_navigation',
     jsonb_build_object(
         'select', '*, 
-        parent:sidebar_navigation!sidebar_navigation_parent_id_fkey(id, name),
         search_query:search_queries!fk_sidebar_navigation_search_query(id, name)',
         'orderBy', jsonb_build_array(
             jsonb_build_object('id', 'sort_order', 'desc', false)
@@ -1648,17 +1647,6 @@ INSERT INTO search_queries (
             'header', 'Icon',
             'accessorKey', 'icon',
             'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Parent',
-            'accessorKey', 'parent_id',
-            'aliasName', 'parent',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'sidebar_navigation',
-                'value', 'id',
-                'label', 'name'
-            )
         ),
         jsonb_build_object(
             'header', 'Search Query',
@@ -1697,6 +1685,49 @@ INSERT INTO search_queries (
     true
 );
 
+-- Add Knowledge Domain Management search query
+INSERT INTO search_queries (
+    id,
+    name,
+    description,
+    base_table,
+    query_definition,
+    column_definitions,
+    permissions_required,
+    is_active
+) VALUES (
+    'aaaaaaaa-0000-4000-a000-000000000003',
+    'Knowledge Domain Management',
+    'Manage knowledge domains and expertise levels',
+    'knowledge_domain',
+    jsonb_build_object(
+        'select', '*',
+        'orderBy', jsonb_build_array(
+            jsonb_build_object('id', 'name', 'desc', false)
+        )
+    ),
+    jsonb_build_array(
+        jsonb_build_object(
+            'header', 'Name',
+            'accessorKey', 'name',
+            'type', 'text',
+            'required', true
+        ),
+        jsonb_build_object(
+            'header', 'Description',
+            'accessorKey', 'description',
+            'type', 'textarea'
+        ),
+        jsonb_build_object(
+            'header', 'Active',
+            'accessorKey', 'is_active',
+            'type', 'boolean'
+        )
+    ),
+    ARRAY['admin.knowledge.manage'],
+    true
+);
+
 -- First, insert main navigation items
 INSERT INTO public.sidebar_navigation 
 (id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active) 
@@ -1705,12 +1736,8 @@ VALUES
 ('11111111-1111-1111-1111-222222222222', 'Dashboard', 'Main dashboard', '📊', null, null, '/', 10, ARRAY['sidebar.dashboard'], true),
 ('22222222-2222-2222-2222-222222222222', 'Tickets', 'Ticket management', '🎫', null, null, null, 20, ARRAY['sidebar.tickets'], true),
 ('33333333-3333-3333-3333-222222222222', 'Reports', 'System reports', '📈', null, null, null, 30, ARRAY['sidebar.reports'], true),
-('99999999-9999-9999-9999-222222222222', 'Admin', 'Administration', '⚙️', null, null, null, 40, ARRAY['sidebar.admin'], true);
+('99999999-9999-9999-9999-222222222222', 'Admin', 'Administration', '⚙️', null, null, null, 40, ARRAY['sidebar.admin'], true),
 
--- Then insert child items
-INSERT INTO public.sidebar_navigation 
-(id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active) 
-VALUES
 -- Ticket sub-items
 ('44444444-4444-4444-4444-222222222222', 'My Submitted Tickets', 'View tickets submitted by me', '📝', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '/list', 10, ARRAY['tickets.view.own'], true),
 ('44444444-4444-4444-4444-222222222211', 'Customer Tickets', 'View tickets submitted by me', '📝', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb11', '/list', 10, ARRAY['tickets.view.own.customer'], true),
@@ -1724,6 +1751,7 @@ VALUES
 ('bbbbbbbb-0000-4000-b000-000000000001',   'Tickets by Status', 'View ticket distribution by status', '📊', '33333333-3333-3333-3333-222222222222', 'aaaaaaaa-0000-4000-a000-000000000001', null, 10, ARRAY['reports.view'], true),
 
 -- Admin sub-items
+('aaaaaaaa-bbbb-cccc-dddd-222222222222', 'Knowledge Domains', 'Manage Knowledge Domains', '🧠', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-0000-4000-a000-000000000003', '/list', 15, ARRAY['admin.knowledge.manage'], true),
 ('aaaaaaaa-aaaa-aaaa-aaaa-222222222222', 'Users', 'User management', '👥', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-0000-4000-a000-000000000002', '/list', 10, ARRAY['admin.users.manage'], true),
 ('bbbbbbbb-bbbb-bbbb-bbbb-222222222222', 'Roles', 'Role management', '🔑', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-bbbb-cccc-dddd-111111111111', '/list', 20, ARRAY['admin.roles.manage'], true),
 ('cccccccc-cccc-cccc-cccc-222222222222', 'Permissions', 'Permission management', '🛡️', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-bbbb-cccc-dddd-222222222222', '/list', 30, ARRAY['admin.permissions.manage'], true),
@@ -1973,6 +2001,96 @@ INSERT INTO search_queries (
     true
 );
 
+-- Add Comment Templates Management search query
+INSERT INTO search_queries (
+    id,
+    name,
+    description,
+    base_table,
+    query_definition,
+    column_definitions,
+    permissions_required,
+    is_active
+) VALUES (
+    'cccccccc-1111-2222-3333-444444444444',  -- Fixed UUID format
+    'Comment Templates',
+    'Manage comment templates',
+    'comment_templates',
+    jsonb_build_object(
+        'select', '*',
+        'orderBy', jsonb_build_array(
+            jsonb_build_object('id', 'category', 'desc', false),
+            jsonb_build_object('id', 'sort_order', 'desc', false)
+        )
+    ),
+    jsonb_build_array(
+        jsonb_build_object(
+            'header', 'Name',
+            'accessorKey', 'name',
+            'type', 'text',
+            'required', true
+        ),
+        jsonb_build_object(
+            'header', 'Content',
+            'accessorKey', 'content',
+            'type', 'textarea',
+            'required', true
+        ),
+        jsonb_build_object(
+            'header', 'Category',
+            'accessorKey', 'category',
+            'type', 'text'
+        ),
+        jsonb_build_object(
+            'header', 'Private',
+            'accessorKey', 'is_private',
+            'type', 'boolean'
+        ),
+        jsonb_build_object(
+            'header', 'Sort Order',
+            'accessorKey', 'sort_order',
+            'type', 'number'
+        ),
+        jsonb_build_object(
+            'header', 'Active',
+            'accessorKey', 'is_active',
+            'type', 'boolean'
+        )
+    ),
+    ARRAY['admin.templates.manage'],
+    true
+);
+
+-- Add to Admin navigation
+INSERT INTO sidebar_navigation 
+(id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active)
+VALUES (
+    'cccccccc-1111-2222-3333-555555555555',  -- Fixed UUID format
+    'Comment Templates',
+    'Manage comment templates',
+    '📝',
+    '99999999-9999-9999-9999-222222222222',  -- Admin section
+    'cccccccc-1111-2222-3333-444444444444',  -- Match search query ID
+    '/list',
+    60,
+    ARRAY['admin.templates.manage'],
+    true
+);
+
+-- Add permission for template management
+INSERT INTO permissions (id, name, description)
+VALUES ('cccccccc-1111-2222-3333-666666666666', 'admin.templates.manage', 'Manage comment templates');  -- Fixed UUID format
+
+-- Grant permission to admin role
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT 
+    r.id,
+    p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'admin'
+AND p.name = 'admin.templates.manage';
+
 -- Add relationships between search queries
 INSERT INTO search_query_relationships (parent_search_query_id, child_search_query_id) VALUES 
 -- Teams and its child queries
@@ -2009,16 +2127,197 @@ INSERT INTO search_query_relationships (parent_search_query_id, child_search_que
 
 -- My Team's Tickets
 ('aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-444444444444');
+('aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-444444444444'),
+
+-- IntelliSUppot comment template
+('aaaaaaaa-bbbb-cccc-dddd-444444444444', 'cccccccc-1111-2222-3333-444444444444');
 
 -- Update Navigation Management search query
 UPDATE search_queries 
 SET query_definition = jsonb_build_object(
     'select', '*, 
-    parent:sidebar_navigation!sidebar_navigation_parent_id_fkey(id, name),
     search_query:search_queries!fk_sidebar_navigation_search_query(id, name)',
     'orderBy', jsonb_build_array(
         jsonb_build_object('id', 'sort_order', 'desc', false)
     )
 )
 WHERE id = 'ffffffff-eeee-dddd-cccc-111111111111';
+
+-- Add initial comment templates
+INSERT INTO comment_templates (
+    id,
+    name,
+    content,
+    category,
+    is_private,
+    sort_order,
+    is_active
+) VALUES 
+-- General templates
+(
+    'cccccccc-1111-2222-3333-000000000001',
+    'Ticket Acknowledgment',
+    'Thank you for submitting your ticket. We have received your request and will begin working on it shortly.',
+    'General',
+    false,
+    10,
+    true
+),
+(
+    'cccccccc-1111-2222-3333-000000000002',
+    'Status Update Request',
+    'Could you please provide an update on this issue? Has there been any change in status?',
+    'General',
+    false,
+    20,
+    true
+),
+-- Internal notes
+(
+    'cccccccc-1111-2222-3333-000000000003',
+    'Internal Escalation Note',
+    'This ticket requires escalation due to [reason]. Please review and advise.',
+    'Internal',
+    true,
+    30,
+    true
+),
+(
+    'cccccccc-1111-2222-3333-000000000004',
+    'Internal Handover Note',
+    'Handing over this ticket. Current status: [status]. Next steps needed: [steps].',
+    'Internal',
+    true,
+    40,
+    true
+),
+-- Resolution templates
+(
+    'cccccccc-1111-2222-3333-000000000005',
+    'Resolution Confirmation',
+    'We believe this issue has been resolved. Please confirm if the solution meets your needs.',
+    'Resolution',
+    false,
+    50,
+    true
+),
+(
+    'cccccccc-1111-2222-3333-000000000006',
+    'Closing Note',
+    'As we haven''t heard back from you, we''ll be closing this ticket. Feel free to reopen if you need further assistance.',
+    'Resolution',
+    false,
+    60,
+    true
+),
+-- Follow-up templates
+(
+    'cccccccc-1111-2222-3333-000000000007',
+    'Additional Information Request',
+    'To better assist you, we need the following additional information:\n- [detail 1]\n- [detail 2]',
+    'Follow-up',
+    false,
+    70,
+    true
+),
+(
+    'cccccccc-1111-2222-3333-000000000008',
+    'Progress Update',
+    'We wanted to update you on the progress of your ticket. Currently, we are [status] and expect [next steps].',
+    'Follow-up',
+    false,
+    80,
+    true
+);
+
+-- Add Knowledge Domain Management permission
+INSERT INTO permissions (id, name, description)
+VALUES ('11111111-1111-cccc-1111-111111111111', 'admin.knowledge.manage', 'Can view and manage knowledge domains');
+
+-- Add permission to admin role
+INSERT INTO role_permissions (role_id, permission_id)
+VALUES ('11111111-1111-1111-1111-111111111112', '11111111-1111-cccc-1111-111111111111');
+
+-- Add User Knowledge Domains search query
+INSERT INTO search_queries (
+    id,
+    name,
+    description,
+    base_table,
+    query_definition,
+    column_definitions,
+    permissions_required,
+    is_active
+) VALUES (
+    'aaaaaaaa-0000-4000-a000-000000000004',
+    'User Knowledge Domains',
+    'Manage user knowledge domains and expertise levels',
+    'user_knowledge_domain',
+    jsonb_build_object(
+        'select', '*, 
+        user:users!fk_user_knowledge_domain_user(id, email, full_name),
+        domain:knowledge_domain!fk_user_knowledge_domain_knowledge(id, name)',
+        'orderBy', jsonb_build_array(
+            jsonb_build_object('id', 'expertise', 'desc', true)
+        )
+    ),
+    jsonb_build_array(
+        jsonb_build_object(
+            'header', 'User',
+            'accessorKey', 'user',
+            'type', 'object',
+            'subColumns', jsonb_build_array(
+                jsonb_build_object(
+                    'header', 'Name',
+                    'accessorKey', 'full_name',
+                    'type', 'text'
+                ),
+                jsonb_build_object(
+                    'header', 'Email',
+                    'accessorKey', 'email',
+                    'type', 'text'
+                )
+            )
+        ),
+        jsonb_build_object(
+            'header', 'Domain',
+            'accessorKey', 'domain',
+            'type', 'object',
+            'subColumns', jsonb_build_array(
+                jsonb_build_object(
+                    'header', 'Name',
+                    'accessorKey', 'name',
+                    'type', 'text'
+                )
+            )
+        ),
+        jsonb_build_object(
+            'header', 'Expertise',
+            'accessorKey', 'expertise',
+            'type', 'select',
+            'options', jsonb_build_array('beginner', 'intermediate', 'expert')
+        ),
+        jsonb_build_object(
+            'header', 'Years Experience',
+            'accessorKey', 'years_experience',
+            'type', 'number'
+        ),
+        jsonb_build_object(
+            'header', 'Description',
+            'accessorKey', 'description',
+            'type', 'textarea'
+        ),
+        jsonb_build_object(
+            'header', 'Credentials',
+            'accessorKey', 'credential',
+            'type', 'text'
+        )
+    ),
+    ARRAY['admin.users.manage'],
+    true
+);
+
+-- Add search query relationship
+INSERT INTO search_query_relationships (parent_search_query_id, child_search_query_id)
+VALUES ('aaaaaaaa-0000-4000-a000-000000000002', 'aaaaaaaa-0000-4000-a000-000000000004');
+

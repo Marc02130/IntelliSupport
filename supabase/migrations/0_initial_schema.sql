@@ -284,6 +284,25 @@ CREATE TABLE public.audit_log (
     performed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create comment templates table
+CREATE TABLE public.comment_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_private BOOLEAN DEFAULT false,
+    category TEXT,
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES auth.users(id)
+);
+
+-- Add indexes
+CREATE INDEX idx_comment_templates_category ON comment_templates(category);
+CREATE INDEX idx_comment_templates_is_active ON comment_templates(is_active);
+
 COMMENT ON COLUMN search_queries.relationship_type IS 'Type of relationship (one_to_many or many_to_many)';
 COMMENT ON COLUMN search_queries.relationship_join_table IS 'For many_to_many, specifies the junction table';
 COMMENT ON COLUMN search_queries.relationship_local_key IS 'Column in parent table that links to related data';

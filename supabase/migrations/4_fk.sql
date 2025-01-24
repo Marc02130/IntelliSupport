@@ -22,13 +22,6 @@ COMMENT ON CONSTRAINT fk_tickets_assignee ON tickets IS 'assigned_to';
 COMMENT ON CONSTRAINT fk_tickets_organization ON tickets IS 'organization'; 
 COMMENT ON CONSTRAINT fk_tickets_teams ON tickets IS 'team';
 
--- Add foreign key constraints to user_knowledge_domain table
-ALTER TABLE user_knowledge_domain
-  ADD CONSTRAINT fk_user_knowledge_domain_user
-    FOREIGN KEY (user_id) 
-    REFERENCES public.users(id)
-    ON DELETE CASCADE;
-
 -- Add constraint name for users.organization_id foreign key
 ALTER TABLE public.users 
     DROP CONSTRAINT IF EXISTS users_organization_id_fkey,
@@ -145,3 +138,15 @@ ALTER TABLE public.sidebar_navigation
     FOREIGN KEY (search_query_id)
     REFERENCES public.search_queries(id)
     ON DELETE SET NULL;
+
+-- Add foreign keys for knowledge domain relationships
+ALTER TABLE user_knowledge_domain
+    ADD CONSTRAINT fk_user_knowledge_domain_user 
+    FOREIGN KEY (user_id) 
+    REFERENCES users(id);
+
+ALTER TABLE user_knowledge_domain
+    ADD CONSTRAINT fk_user_knowledge_domain_knowledge 
+    FOREIGN KEY (knowledge_domain_id) 
+    REFERENCES knowledge_domain(id);
+    
