@@ -2238,9 +2238,10 @@ VALUES ('11111111-1111-cccc-1111-111111111111', 'admin.knowledge.manage', 'Can v
 INSERT INTO role_permissions (role_id, permission_id)
 VALUES ('11111111-1111-1111-1111-111111111112', '11111111-1111-cccc-1111-111111111111');
 
--- Add User Knowledge Domains search query
 INSERT INTO search_queries (
     id,
+    parent_table,
+    parent_field,
     name,
     description,
     base_table,
@@ -2250,47 +2251,30 @@ INSERT INTO search_queries (
     is_active
 ) VALUES (
     'aaaaaaaa-0000-4000-a000-000000000004',
+    'users',
+    'user_id',
     'User Knowledge Domains',
     'Manage user knowledge domains and expertise levels',
     'user_knowledge_domain',
     jsonb_build_object(
         'select', '*, 
-        user:users!fk_user_knowledge_domain_user(id, email, full_name),
-        domain:knowledge_domain!fk_user_knowledge_domain_knowledge(id, name)',
+        user_domain:knowledge_domain!fk_user_knowledge_domain_knowledge(id, name)',
         'orderBy', jsonb_build_array(
             jsonb_build_object('id', 'expertise', 'desc', true)
         )
     ),
     jsonb_build_array(
         jsonb_build_object(
-            'header', 'User',
-            'accessorKey', 'user',
-            'type', 'object',
-            'subColumns', jsonb_build_array(
-                jsonb_build_object(
-                    'header', 'Name',
-                    'accessorKey', 'full_name',
-                    'type', 'text'
-                ),
-                jsonb_build_object(
-                    'header', 'Email',
-                    'accessorKey', 'email',
-                    'type', 'text'
-                )
+            'header', 'Knowledge Domain',
+            'accessorKey', 'knowledge_domain_id',
+            'aliasName', 'user_domain',
+            'type', 'uuid',
+            'foreignKey', jsonb_build_object(
+                'table', 'knowledge_domain',
+                'value', 'id',
+                'label', 'name'
             )
-        ),
-        jsonb_build_object(
-            'header', 'Domain',
-            'accessorKey', 'domain',
-            'type', 'object',
-            'subColumns', jsonb_build_array(
-                jsonb_build_object(
-                    'header', 'Name',
-                    'accessorKey', 'name',
-                    'type', 'text'
-                )
-            )
-        ),
+        ),  -- Added missing closing parenthesis here
         jsonb_build_object(
             'header', 'Expertise',
             'accessorKey', 'expertise',
@@ -2319,5 +2303,4 @@ INSERT INTO search_queries (
 
 -- Add search query relationship
 INSERT INTO search_query_relationships (parent_search_query_id, child_search_query_id)
-VALUES ('aaaaaaaa-0000-4000-a000-000000000002', 'aaaaaaaa-0000-4000-a000-000000000004');
-
+VALUES ('aaaaaaaa-0000-4000-a000-000000000002', 'aaaaaaaa-0000-4000-a000-000000000004')

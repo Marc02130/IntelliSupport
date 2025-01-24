@@ -51,6 +51,7 @@ CREATE TABLE public.knowledge_domain (
 
 -- Junction table for users and knowledge domains
 CREATE TABLE public.user_knowledge_domain (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     knowledge_domain_id UUID REFERENCES knowledge_domain(id) ON DELETE CASCADE,
     expertise VARCHAR(20) NOT NULL CHECK (expertise IN ('beginner', 'intermediate', 'expert')),
@@ -58,7 +59,7 @@ CREATE TABLE public.user_knowledge_domain (
     description TEXT,
     credential TEXT,
     years_experience INTEGER NOT NULL CHECK (years_experience >= 0),
-    PRIMARY KEY (user_id, knowledge_domain_id),
+    UNIQUE (user_id, knowledge_domain_id),
     created_by UUID REFERENCES auth.users(id),
     updated_by UUID REFERENCES auth.users(id)
 );
