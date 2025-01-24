@@ -36,8 +36,12 @@ export default function AttachmentsTab({ recordId, type = 'ticket' }) {
       const file = event.target.files[0]
       if (!file) return
 
-      // Upload file to storage
-      const filePath = `${auth.user().id}/${type}/${recordId}/${file.name}`
+      // Get current user from supabase
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      // Upload file to storage using the correct user ID
+      const filePath = `${user.id}/${type}/${recordId}/${file.name}`
       const { error: uploadError } = await supabase.storage
         .from('attachments')
         .upload(filePath, file)

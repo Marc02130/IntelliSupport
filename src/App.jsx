@@ -6,9 +6,6 @@ import Dashboard from './components/Dashboard'
 import Layout from './components/Layout'
 import ListView from './components/ListView'
 import DataRecord from './components/DataRecord'
-import SearchTable from './components/SearchTable'
-import DataRecordEdit from './components/DataRecordEdit'
-import DataRecordAdd from './components/DataRecordAdd'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -51,12 +48,11 @@ function App() {
         <Route path="/" element={<Layout session={session} />}>
           <Route index element={<Dashboard session={session} />} />
           <Route path="list/:queryId" element={<ListView />} />
-          <Route path="datarecord/add/:queryId" element={<DataRecordAdd />} />
-          <Route path="datarecord/edit/:queryId/:recordId" element={<DataRecordEdit />} />
+          <Route path="datarecord/add/:queryId" element={<DataRecord />} />
+          <Route path="datarecord/edit/:queryId/:recordId" element={<DataRecord />} />
           <Route path="/admin/*" element={<Dashboard session={session} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-        <Route path="/search/:queryId" element={<SearchTable />} />
       </Routes>
     </BrowserRouter>
   )
