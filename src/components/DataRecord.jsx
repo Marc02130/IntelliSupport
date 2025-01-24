@@ -5,6 +5,7 @@ import SearchTable from './SearchTable'
 import CommentTemplateSelector from './CommentTemplateSelector'
 import JSONEditor from 'react-json-editor-ajrm/es'
 import locale from 'react-json-editor-ajrm/locale/en'
+import AttachmentsTab from './AttachmentsTab'
 
 export default function DataRecord() {
   const { queryId, recordId } = useParams()
@@ -18,6 +19,7 @@ export default function DataRecord() {
   const [foreignKeyOptions, setForeignKeyOptions] = useState({})
   const [childQueries, setChildQueries] = useState([])
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('details')
 
   // Get parent context from location state if it exists
   const parentContext = location.state || {}
@@ -516,44 +518,70 @@ export default function DataRecord() {
     <div className="data-record">
       <h2>{mode === 'add' ? 'Add New Record' : 'Edit Record'}</h2>
       
-      <div className="form">
-        {queryDef.column_definitions
-          .filter(col => 
-            !col.hidden && 
-            col.accessorKey !== 'id' && 
-            col.type !== 'computed'  // Ignore all computed fields
-          )
-          .map(column => (
-            <div key={column.accessorKey} className="form-field">
-              <label>
-                {column.header}
-                {column.required && <span className="required">*</span>}
-              </label>
-              
-              {renderField(column)}
-              
-              {errors[column.accessorKey] && (
-                <div className="error-message">{errors[column.accessorKey]}</div>
-              )}
-            </div>
-          ))}
-
-        {errors.submit && (
-          <div className="error-message">{errors.submit}</div>
-        )}
-
-        <div className="button-group">
-          <button onClick={handleSave} disabled={loading}>
-            {loading ? 'Saving...' : 'Save'}
+      {mode === 'edit' && (
+        <div className="tabs">
+          <button 
+            className={`tab ${activeTab === 'details' ? 'active' : ''}`}
+            onClick={() => setActiveTab('details')}
+          >
+            Details
           </button>
-          <button onClick={() => parentUrl ? navigate(parentUrl) : navigate(`/list/${queryId}`)}>
-            Cancel
+          {childQueries.length > 0 && (
+            <button 
+              className={`tab ${activeTab === 'related' ? 'active' : ''}`}
+              onClick={() => setActiveTab('related')}
+            >
+              Related Items
+            </button>
+          )}
+          <button 
+            className={`tab ${activeTab === 'attachments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('attachments')}
+          >
+            Attachments
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Add child tables section */}
-      {mode === 'edit' && childQueries.length > 0 && (
+      {activeTab === 'details' && (
+        <div className="form">
+          {queryDef.column_definitions
+            .filter(col => 
+              !col.hidden && 
+              col.accessorKey !== 'id' && 
+              col.type !== 'computed'  // Ignore all computed fields
+            )
+            .map(column => (
+              <div key={column.accessorKey} className="form-field">
+                <label>
+                  {column.header}
+                  {column.required && <span className="required">*</span>}
+                </label>
+                
+                {renderField(column)}
+                
+                {errors[column.accessorKey] && (
+                  <div className="error-message">{errors[column.accessorKey]}</div>
+                )}
+              </div>
+            ))}
+
+          {errors.submit && (
+            <div className="error-message">{errors.submit}</div>
+          )}
+
+          <div className="button-group">
+            <button onClick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+            <button onClick={() => parentUrl ? navigate(parentUrl) : navigate(`/list/${queryId}`)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'related' && childQueries.length > 0 && (
         <div className="child-tables">
           {childQueries.map(childQuery => (
             <div key={childQuery.id} className="child-table">
@@ -567,6 +595,10 @@ export default function DataRecord() {
             </div>
           ))}
         </div>
+      )}
+
+      {activeTab === 'attachments' && (
+        <AttachmentsTab recordId={recordId} type="ticket" />
       )}
 
       <style>
@@ -658,6 +690,28 @@ export default function DataRecord() {
 
           .child-table h3 {
             margin-bottom: 1rem;
+          }
+
+          .tabs {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+          }
+          .tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+          }
+          .tab.active {
+            color: #000;
+            border-bottom: 2px solid #000;
+          }
+          .tab:hover {
+            color: #000;
           }
         `}
       </style>

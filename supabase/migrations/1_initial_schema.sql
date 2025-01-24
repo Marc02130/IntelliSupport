@@ -127,25 +127,6 @@ CREATE TABLE public.ticket_tags (
     updated_by UUID REFERENCES auth.users(id)
 );
 
--- Attachments table for both tickets and comments
-CREATE TABLE public.attachments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    file_name VARCHAR(255) NOT NULL,
-    file_path VARCHAR(512) NOT NULL,
-    file_size INTEGER NOT NULL,
-    content_type VARCHAR(100) NOT NULL,
-    ticket_id UUID REFERENCES tickets(id) ON DELETE CASCADE,
-    comment_id UUID REFERENCES ticket_comments(id) ON DELETE CASCADE,
-    uploaded_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CHECK (
-        (ticket_id IS NOT NULL AND comment_id IS NULL) OR
-        (ticket_id IS NULL AND comment_id IS NOT NULL)
-    ),
-    created_by UUID REFERENCES auth.users(id),
-    updated_by UUID REFERENCES auth.users(id)
-);
-
 -- Create permissions table
 CREATE TABLE public.permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -300,6 +281,21 @@ CREATE TABLE public.comment_templates (
     updated_by UUID REFERENCES auth.users(id)
 );
 
+-- Replace both ticket_attachments and comment_attachments with a single attachments table
+CREATE TABLE public.attachments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entity_type TEXT NOT NULL,
+    entity_id UUID NOT NULL,
+    storage_path TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    mime_type TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES auth.users(id),
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES auth.users(id)
+);
+
 -- Add indexes
 CREATE INDEX idx_comment_templates_category ON comment_templates(category);
 CREATE INDEX idx_comment_templates_is_active ON comment_templates(is_active);
@@ -336,3 +332,7 @@ CREATE INDEX idx_audit_log_table ON audit_log(table_name);
 CREATE INDEX idx_audit_log_record ON audit_log(record_id);
 CREATE INDEX idx_audit_log_performed_by ON audit_log(performed_by);
 CREATE INDEX idx_audit_log_performed_at ON audit_log(performed_at);
+
+-- Add indexes for better performance
+CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id);
+CREATE INDEX idx_attachments_created_by ON attachments(created_by);

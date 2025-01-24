@@ -399,3 +399,25 @@ CREATE TRIGGER audit_role_permissions
 DROP TRIGGER IF EXISTS set_users_audit ON users;
 DROP TRIGGER IF EXISTS audit_users ON users;
 DROP TRIGGER IF EXISTS audit_ticket_tags ON ticket_tags;
+
+-- Create trigger function to validate entity references
+CREATE OR REPLACE FUNCTION validate_attachment_entity()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Just check if the referenced entity exists in either table
+    IF NOT EXISTS (
+        SELECT 1 FROM tickets WHERE id = NEW.entity_id
+        UNION
+        SELECT 1 FROM ticket_comments WHERE id = NEW.entity_id
+    ) THEN
+        RAISE EXCEPTION 'Invalid entity reference';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger
+CREATE TRIGGER check_attachment_entity
+    BEFORE INSERT OR UPDATE ON attachments
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_attachment_entity();

@@ -668,4 +668,182 @@ CREATE POLICY "Admins can manage user knowledge domains" ON public.user_knowledg
     USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin')
     WITH CHECK ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
+-- -------------------------- Attachments --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view attachments for accessible entities" ON public.attachments;
+DROP POLICY IF EXISTS "Users can add attachments to accessible entities" ON public.attachments;
+DROP POLICY IF EXISTS "Users can delete their own attachments" ON public.attachments;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.attachments TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
+
+-- Allow users to view attachments for entities they can access
+CREATE POLICY "Users can view attachments for accessible entities" ON public.attachments
+    FOR SELECT
+    USING (
+        CASE entity_type
+        WHEN 'ticket' THEN
+            EXISTS (
+                SELECT 1 FROM tickets t
+                WHERE t.id = entity_id
+                AND (
+                    -- Ticket requester
+                    t.requester_id = auth.uid()
+                    -- Ticket assignee
+                    OR t.assignee_id = auth.uid()
+                    -- Same organization
+                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                    -- Admin or agent
+                    OR EXISTS (
+                        SELECT 1 FROM users 
+                        WHERE id = auth.uid() 
+                        AND role IN ('admin', 'agent')
+                    )
+                )
+            )
+        WHEN 'comment' THEN
+            EXISTS (
+                SELECT 1 FROM ticket_comments tc
+                JOIN tickets t ON t.id = tc.ticket_id
+                WHERE tc.id = entity_id
+                AND (
+                    -- Ticket requester
+                    t.requester_id = auth.uid()
+                    -- Ticket assignee
+                    OR t.assignee_id = auth.uid()
+                    -- Same organization
+                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                    -- Admin or agent
+                    OR EXISTS (
+                        SELECT 1 FROM users 
+                        WHERE id = auth.uid() 
+                        AND role IN ('admin', 'agent')
+                    )
+                )
+            )
+        END
+    );
+
+-- Allow users to add attachments to entities they can access
+CREATE POLICY "Users can add attachments to accessible entities" ON public.attachments
+    FOR INSERT
+    WITH CHECK (
+        CASE entity_type
+        WHEN 'ticket' THEN
+            EXISTS (
+                SELECT 1 FROM tickets t
+                WHERE t.id = entity_id
+                AND (
+                    -- Ticket requester
+                    t.requester_id = auth.uid()
+                    -- Ticket assignee
+                    OR t.assignee_id = auth.uid()
+                    -- Same organization
+                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                    -- Admin or agent
+                    OR EXISTS (
+                        SELECT 1 FROM users 
+                        WHERE id = auth.uid() 
+                        AND role IN ('admin', 'agent')
+                    )
+                )
+            )
+        WHEN 'comment' THEN
+            EXISTS (
+                SELECT 1 FROM ticket_comments tc
+                JOIN tickets t ON t.id = tc.ticket_id
+                WHERE tc.id = entity_id
+                AND (
+                    -- Comment author
+                    tc.author_id = auth.uid()
+                    -- Ticket assignee
+                    OR t.assignee_id = auth.uid()
+                    -- Same organization
+                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                    -- Admin or agent
+                    OR EXISTS (
+                        SELECT 1 FROM users 
+                        WHERE id = auth.uid() 
+                        AND role IN ('admin', 'agent')
+                    )
+                )
+            )
+        END
+    );
+
+-- Allow users to delete their own attachments
+CREATE POLICY "Users can delete their own attachments" ON public.attachments
+    FOR DELETE
+    USING (created_by = auth.uid());
+
+-- -------------------------- Storage Policies --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Authenticated users can upload attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Users can view attachments they have access to" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own attachments" ON storage.objects;
+
+-- Policy for uploading files
+CREATE POLICY "Authenticated users can upload attachments"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'attachments' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+);
+
+-- Policy for viewing files
+CREATE POLICY "Users can view attachments they have access to"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+    bucket_id = 'attachments' AND
+    EXISTS (
+        SELECT 1 FROM attachments a
+        WHERE a.storage_path = storage.objects.name
+        AND (
+            CASE a.entity_type
+            WHEN 'ticket' THEN
+                EXISTS (
+                    SELECT 1 FROM tickets t
+                    WHERE t.id = a.entity_id
+                    AND (
+                        t.requester_id = auth.uid()
+                        OR t.assignee_id = auth.uid()
+                        OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                        OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'agent'))
+                    )
+                )
+            WHEN 'comment' THEN
+                EXISTS (
+                    SELECT 1 FROM ticket_comments tc
+                    JOIN tickets t ON t.id = tc.ticket_id
+                    WHERE tc.id = a.entity_id
+                    AND (
+                        t.requester_id = auth.uid()
+                        OR t.assignee_id = auth.uid()
+                        OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                        OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'agent'))
+                    )
+                )
+            END
+        )
+    )
+);
+
+-- Policy for deleting files
+CREATE POLICY "Users can delete their own attachments"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+    bucket_id = 'attachments' AND
+    EXISTS (
+        SELECT 1 FROM attachments a
+        WHERE a.storage_path = storage.objects.name
+        AND a.created_by = auth.uid()
+    )
+);
+
 
