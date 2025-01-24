@@ -103,6 +103,47 @@ export default function AttachmentsTab({ recordId, type = 'ticket' }) {
     }
   }
 
+  async function handleDownload(attachment) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('attachments')
+        .download(attachment.storage_path)
+
+      if (error) throw error
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([data], { type: attachment.mime_type })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = attachment.filename // Use original filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      console.error('Download error:', err)
+      setError(err.message)
+    }
+  }
+
+  async function handlePreview(attachment) {
+    try {
+      // Get signed URL that expires in 1 hour
+      const { data: { signedUrl }, error } = await supabase.storage
+        .from('attachments')
+        .createSignedUrl(attachment.storage_path, 3600)
+
+      if (error) throw error
+
+      // Open in new tab
+      window.open(signedUrl, '_blank')
+    } catch (err) {
+      console.error('Preview error:', err)
+      setError(err.message)
+    }
+  }
+
   if (loading) return <div>Loading attachments...</div>
   if (error) return <div className="error-message">{error}</div>
 
@@ -124,12 +165,26 @@ export default function AttachmentsTab({ recordId, type = 'ticket' }) {
             <div key={attachment.id} className="attachment-item">
               <span className="filename">{attachment.filename}</span>
               <span className="filesize">({Math.round(attachment.size / 1024)} KB)</span>
-              <button 
-                onClick={() => handleDelete(attachment.id)}
-                className="delete-btn"
-              >
-                Delete
-              </button>
+              <div className="action-buttons">
+                <button 
+                  onClick={() => handlePreview(attachment)}
+                  className="preview-btn"
+                >
+                  Preview
+                </button>
+                <button 
+                  onClick={() => handleDownload(attachment)}
+                  className="download-btn"
+                >
+                  Download
+                </button>
+                <button 
+                  onClick={() => handleDelete(attachment.id)}
+                  className="delete-button"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -175,6 +230,35 @@ export default function AttachmentsTab({ recordId, type = 'ticket' }) {
         .error-message {
           color: red;
           margin: 1rem 0;
+        }
+        .action-buttons {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+        .download-btn {
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+          background: #4CAF50;
+          color: white;
+          border: none;
+        }
+        .download-btn:hover {
+          background: #45a049;
+        }
+        .preview-btn {
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+          background: #2196F3;
+          color: white;
+          border: none;
+        }
+        .preview-btn:hover {
+          background: #1976D2;
         }
       `}</style>
     </div>
