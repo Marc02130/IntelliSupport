@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import {
@@ -10,345 +10,311 @@ import {
   flexRender,
 } from '@tanstack/react-table'
 
-export default function SearchTable({ 
-  queryId,
-  parentRecord,
-  relationshipType,
-  relationshipConfig,
-  onRowDoubleClick, 
-  onAdd 
-}) {
+export default function SearchTable({ queryId, parentId = null, parentField = null, parentQueryId = null }) {
   const [queryDef, setQueryDef] = useState(null)
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
   const [sorting, setSorting] = useState([])
   const [globalFilter, setGlobalFilter] = useState('')
   const navigate = useNavigate()
 
-  // Add the processColumns function
-  const processColumns = (columns) => {
-    if (!columns || !Array.isArray(columns)) {
-      console.error('Invalid column definitions:', columns)
-      return []
-    }
+  // Determine if we're in a child table context
+  const isChildTable = Boolean(parentId && parentField)
 
-    return columns.map(col => ({
-      ...col,
-      id: col.accessorKey || col.id || col.header,
-      // Add any additional column processing here
-      cell: col.cell || (info => {
-        const value = info.getValue()
-        if (value === null || value === undefined) return ''
-        if (typeof value === 'object') return JSON.stringify(value)
-        return String(value)
-      })
-    }))
-  }
-
+  // Load query definition and data
   useEffect(() => {
-    let mounted = true
-    
-    async function loadData() {
-      if (!queryId) {
-        setError('No query ID provided')
-        setLoading(false)
-        return
-      }
-      
+    async function init() {
       try {
         setLoading(true)
-        setError(null)
-        
-        // Load query definition
-        const queryResult = await supabase
+        // First get the query definition
+        const { data: queryData, error: queryError } = await supabase
           .from('search_queries')
           .select('*')
           .eq('id', queryId)
           .single()
 
-        if (queryResult.error) throw new Error(`Database error: ${queryResult.error.message}`)
-
-        const queryData = queryResult.data
-        if (!queryData) throw new Error('No query definition found')
-
-        // Build data query based on relationship type
-        let dataQuery = supabase.from(queryData.base_table)
-        let selectQuery = queryData.query_definition.select || '*'
+        if (queryError) throw queryError
+        setQueryDef(queryData)
         
-        if (parentRecord && queryData.relationship_type) {
-          console.log('Building relationship query:', {
-            type: queryData.relationship_type,
-            parentId: parentRecord.id,
-            joinTable: queryData.relationship_join_table,
-            localKey: queryData.relationship_local_key,
-            foreignKey: queryData.relationship_foreign_key
-          })
-
-          if (queryData.relationship_type === 'many_to_many') {
-            // For many-to-many, first get the related IDs through the junction table
-            const { data: junctionData, error: junctionError } = await supabase
-              .from(queryData.relationship_join_table)
-              .select('user_id')
-              .eq(queryData.relationship_local_key, parentRecord.id);
-
-            if (junctionError) throw new Error(`Junction table error: ${junctionError.message}`);
-
-            const relatedIds = junctionData.map(record => record.user_id);
-
-            // Then query the main table with those IDs
-            dataQuery = dataQuery
-              .select(selectQuery)
-              .in('id', relatedIds);
-          } else if (queryData.relationship_type === 'one_to_many') {
-            dataQuery = dataQuery
-              .select(selectQuery)
-              .eq(queryData.relationship_foreign_key, parentRecord.id);
-          }
-        } else {
-          // Handle foreign key relationships in the select query
-          if (selectQuery.includes('(')) {
-            // Query includes foreign key relationships
-            dataQuery = dataQuery.select(selectQuery)
-          } else {
-            dataQuery = dataQuery.select(selectQuery)
-          }
-        }
-        
-        // Apply any additional query configuration
-        if (queryData.query_definition.orderBy) {
-          for (const order of queryData.query_definition.orderBy) {
-            dataQuery = dataQuery.order(order.id, { ascending: !order.desc })
-          }
-        }
-
-        console.log('Executing query for table:', queryData.base_table, 'with select:', selectQuery)
-        const dataResult = await dataQuery
-        
-        if (dataResult.error) {
-          console.error('Query error:', dataResult.error)
-          throw new Error(`Data query error: ${dataResult.error.message}`)
-        }
-
-        console.log('Query results:', {
-          count: dataResult.data?.length,
-          firstRow: dataResult.data?.[0]
-        })
-
-        if (mounted) {
-          setQueryDef({
-            ...queryData,
-            column_definitions: processColumns(queryData.column_definitions)
-          })
-          setData(dataResult.data || [])
-          setLoading(false)
-          setError(null)
-        }
+        // Now load the data using our loadData function with the query definition
+        await loadData(queryData)
       } catch (err) {
-        console.error('Error in loadData:', err)
-        if (mounted) {
-          setError(err.message || 'An unexpected error occurred')
-          setLoading(false)
-          setData([])
-          setQueryDef(null)
+        console.error('Error initializing:', err)
+        setError(err.message)
+      }
+    }
+
+    init()
+  }, [queryId])
+
+  // Load data based on query definition
+  const loadData = async (currentQueryDef) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      if (!currentQueryDef) {
+        throw new Error('Query definition not loaded')
+      }
+
+      // Get base query
+      let query = supabase.from(currentQueryDef.base_table)
+
+      // Add select
+      if (currentQueryDef.query_definition.select) {
+        query = query.select(currentQueryDef.query_definition.select)
+      }
+
+      // Handle where clauses
+      let whereClause = currentQueryDef.query_definition.where || {}
+      
+      // Add parent filter if provided (for child tables)
+      if (parentId && parentField) {
+        whereClause = {
+          ...whereClause,
+          [parentField]: parentId
         }
       }
-    }
 
-    loadData()
-    return () => { mounted = false }
-  }, [queryId, parentRecord])
-
-  // Memoize the table columns to prevent unnecessary re-renders
-  const tableColumns = useMemo(() => {
-    if (!queryDef) return [] // Return empty array if queryDef is not loaded yet
-
-    // Add edit button column as the first column
-    const editColumn = {
-      id: 'edit',
-      header: '',
-      sticky: 'left',
-      cell: info => (
-        <button 
-          className="action-button" 
-          title="Edit"
-          onClick={() => navigate(`/datarecord/${queryId}/${info.row.original.id}/edit`)}
-        >
-          ✏️
-        </button>
-      )
-    }
-
-    // Process the remaining columns
-    const processedColumns = queryDef.column_definitions.map(col => {
-      // Skip Actions column
-      if (col.header === 'Actions') return null
-
-      // Set header to "Active" for is_active column
-      const header = col.accessorKey === 'is_active' ? 'Active' : col.header
-
-      return {
-        id: col.accessorKey || col.id || col.header,
-        header,
-        accessorKey: col.accessorKey,
-        accessorFn: col.accessorFn,
-        cell: typeof col.cell === 'function' 
-          ? col.cell 
-          : info => {
-              const value = info.getValue()
-              
-              // Handle special columns
-              if (col.accessorKey === 'is_active') {
-                return (
-                  <button 
-                    className="action-button" 
-                    title={value ? "Active" : "Inactive"}
-                    onClick={() => handleToggleStatus(info.row.original)}
-                  >
-                    {value ? "🟢" : "🔴"}
-                  </button>
-                )
-              }
-              
-              if (col.accessorKey === 'created_at') {
-                return value ? new Date(value).toLocaleDateString() : ''
-              }
-              
-              // Handle objects by converting to string
-              if (typeof value === 'object' && value !== null) {
-                return JSON.stringify(value)
-              }
-              
-              // Handle all other values
-              return value?.toString() || ''
-            }
+      // Apply where clauses
+      if (Object.keys(whereClause).length > 0) {
+        for (const [key, value] of Object.entries(whereClause)) {
+          if (value === 'auth.uid()') {
+            const { data: { user } } = await supabase.auth.getUser()
+            query = query.eq(key, user.id)
+          } else if (typeof value === 'string' && value.startsWith('(')) {
+            // Handle SQL expressions/subqueries
+            const { data: { user } } = await supabase.auth.getUser()
+            const sqlWithUserId = value.replace('auth.uid()', `'${user.id}'`)
+            const { data: subqueryData, error: rpcError } = await supabase.rpc('execute_sql', { 
+              sql_query: sqlWithUserId.slice(1, -1)
+            })
+            if (rpcError) throw new Error(`RPC Error: ${rpcError.message}`)
+            if (!subqueryData || !subqueryData[0]) throw new Error('No results from subquery')
+            query = query.eq(key, subqueryData[0].result)
+          } else {
+            query = query.eq(key, value)
+          }
+        }
       }
-    })
-    .filter(col => col !== null && col.header !== 'Status') // Remove null and Status columns
 
-    // Return edit column first, followed by other columns
-    return [editColumn, ...processedColumns]
-  }, [queryDef, queryId, navigate]) // Added queryId to dependencies
+      const { data: queryData, error: queryError } = await query
+      if (queryError) throw queryError
+      setData(queryData)
+    } catch (err) {
+      console.error('Error loading data:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  // Memoize the table instance
-  const table = useReactTable({
-    data: data || [], // Provide empty array as fallback
-    columns: tableColumns,
-    state: {
-      sorting,
-      globalFilter,
-    },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  })
+  // Handle navigation to add/edit
+  const handleNavigation = (path, recordId = null) => {
+    if (isChildTable) {
+      // For child tables, we want to return to the parent page
+      const parentUrl = `/datarecord/edit/${parentQueryId}/${parentId}`
 
-  const handleToggleStatus = async (record) => {
+      if (recordId) {
+        // Edit - include parent context
+        navigate(`/datarecord/edit/${queryId}/${recordId}`, {
+          state: {
+            parentId,
+            parentField,
+            parentQueryId,
+            parentUrl  // This will be used to navigate back to parent page
+          }
+        })
+      } else {
+        // Add new - include parent context
+        navigate(`/datarecord/add/${queryId}`, {
+          state: {
+            parentId,
+            parentField,
+            parentQueryId,
+            parentUrl  // This will be used to navigate back to parent page
+          }
+        })
+      }
+    } else {
+      // Regular list view navigation
+      navigate(recordId ? `/datarecord/edit/${queryId}/${recordId}` : `/datarecord/add/${queryId}`)
+    }
+  }
+
+  // Modify the Add New button to use the new navigation
+  const handleAddNew = () => {
+    handleNavigation(`/datarecord/add/${queryId}`)
+  }
+
+  // Add delete function
+  const handleDelete = async (record) => {
     try {
-      const { error } = await supabase
-        .from('search_queries')
-        .update({ is_active: !record.is_active })
-        .eq('id', record.id)
+      let query = supabase.from(queryDef.base_table).delete()
 
+      // If this is a child table (has parent_field), use that for deletion
+      if (queryDef.parent_field && queryDef.parent_table) {
+        // For junction tables, we need both the parent field and the other key
+        const keys = Object.keys(record).filter(key => 
+          // Only include actual table fields, not computed or joined fields
+          key !== 'created_at' && 
+          key !== 'updated_at' &&
+          !key.includes(':') && // Exclude joined fields (they have colons)
+          !key.includes('_name') && // Exclude computed name fields
+          !key.includes('tag_name') // Specifically exclude tag_name
+        )
+        
+        console.log('Deleting with keys:', keys.map(k => `${k}: ${record[k]}`))
+        
+        // Apply each key to the query
+        keys.forEach(key => {
+          query = query.eq(key, record[key])
+        })
+      } else {
+        // Regular table with id column
+        query = query.eq('id', record.id)
+      }
+
+      const { error } = await query
       if (error) throw error
 
-      // Refresh the page to show updated data
-      window.location.reload()
+      // Refresh data after delete
+      await loadData(queryDef)
     } catch (err) {
-      console.error('Error toggling status:', err)
-      alert('Failed to toggle status')
+      console.error('Error deleting record:', err)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="loading-spinner">Loading...</div>
-    )
+  // Modify getColumns to pass the entire record to handleDelete
+  const getColumns = (queryDef) => {
+    if (!queryDef) return []
+    
+    return [
+      {
+        id: 'actions',
+        header: '',
+        accessorKey: 'id',
+        cell: info => (
+          <div className="action-buttons">
+            <button
+              className="edit-button"
+              onClick={() => handleNavigation(`/datarecord/edit/${queryId}/${info.getValue()}`, info.getValue())}
+            >
+              Edit
+            </button>
+            {isChildTable && (
+              <button
+                className="delete-button"
+                onClick={() => handleDelete(info.row.original)}  // Pass entire record
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        ),
+        size: isChildTable ? 100 : 50,
+      },
+      // Add other columns
+      ...queryDef.column_definitions
+        .filter(col => !col.hidden)
+        .map(col => {
+          // Base column definition
+          const column = {
+            header: col.header,
+            accessorKey: col.accessorKey,
+          }
+
+          // Handle different field types
+          column.cell = info => {
+            let value = info.getValue()
+
+            // If foreign key with alias, use the alias value
+            if (col.foreignKey && col.aliasName) {
+              const aliasValue = info.row.original[col.aliasName]
+              value = aliasValue?.[col.foreignKey.label] || ''
+            }
+
+            // Handle computed fields
+            if (col.type === 'computed') {
+              // Use aliasName if provided to get the computed value
+              if (col.aliasName) {
+                value = info.row.original[col.aliasName]
+              }
+
+              switch (col.computedType) {
+                case 'count':
+                  // Handle various count value formats
+                  if (Array.isArray(value)) {
+                    return value.length
+                  }
+                  if (typeof value === 'object' && value !== null) {
+                    return value.count || 0
+                  }
+                  return value || 0
+                
+                case 'array':
+                  // For array fields (like tags)
+                  if (Array.isArray(value)) {
+                    return value.join(', ')
+                  }
+                  // Handle case where value is an object with nested arrays
+                  if (value && typeof value === 'object') {
+                    const tags = Object.values(value).flat()
+                    return tags.join(', ')
+                  }
+                  return ''
+                
+                default:
+                  return value || ''
+              }
+            }
+
+            // Format based on type
+            if (col.type === 'boolean') {
+              return value ? '✓' : '✗'
+            }
+
+            if (col.type === 'datetime') {
+              return value ? new Date(value).toLocaleString() : ''
+            }
+
+            // Handle JSONB columns
+            if (typeof value === 'object' && value !== null) {
+              return JSON.stringify(value)
+            }
+
+            return value || ''
+          }
+
+          return column
+        })
+    ]
   }
 
-  if (error) {
-    return (
-      <div className="error-message">
-        <h3>Error Loading Data</h3>
-        <p>{error}</p>
-        <button onClick={() => setLoading(true)}>Retry</button>
-      </div>
-    )
-  }
+  const columns = useMemo(() => getColumns(queryDef), [queryDef])
 
-  if (!queryDef || !data) {
-    return (
-      <div className="error-message">
-        <p>No data available</p>
-      </div>
-    )
-  }
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  if (loading) return <div>Loading...</div>
+  if (error) return <div>Error: {error}</div>
 
   return (
-    <div className="search-table">
-      <div className="search-controls">
-        <div className="left-controls">
-          {onAdd && (
-            <button 
-              onClick={() => navigate(`/datarecord/${queryId}/add`)} 
-              className="add-button"
-            >
-              Add New
-            </button>
-          )}
-        </div>
-        <div className="right-controls">
-          <input
-            type="text"
-            value={globalFilter ?? ''}
-            onChange={e => setGlobalFilter(e.target.value)}
-            placeholder="Search all columns..."
-            className="search-input"
-          />
-        </div>
+    <div className="table-container">
+      <div className="table-header">
+        <button 
+          className="add-button"
+          onClick={handleAddNew}
+        >
+          Add New
+        </button>
       </div>
 
-      <style>
-        {`
-          .table-container {
-            overflow-x: scroll;
-            scrollbar-width: thin;  /* For Firefox */
-            scrollbar-color: #888 #f1f1f1;  /* For Firefox */
-          }
-          
-          /* For Webkit browsers (Chrome, Safari) */
-          .table-container::-webkit-scrollbar {
-            height: 8px;
-            width: 8px;
-          }
-          
-          .table-container::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-          }
-          
-          .table-container::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-          }
-          
-          .table-container::-webkit-scrollbar-thumb:hover {
-            background: #555;
-          }
-          
-          /* Ensure table takes full width */
-          .table-container table {
-            min-width: 100%;
-            width: max-content;
-          }
-        `}
-      </style>
-
-      <div className="table-container">
+      <div className="table-scroll">
         <table>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
@@ -356,19 +322,12 @@ export default function SearchTable({
                 {headerGroup.headers.map(header => (
                   <th 
                     key={header.id}
-                    onClick={header.column.getToggleSortingHandler()}
-                    className={`${header.column.getCanSort() ? 'sortable' : ''} ${
-                      header.id === 'edit' ? 'sticky-column' : ''
-                    }`}
+                    className={header.column.id === 'actions' ? 'sticky-col' : ''}
                   >
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext()
                     )}
-                    {{
-                      asc: ' 🔼',
-                      desc: ' 🔽',
-                    }[header.column.getIsSorted()] ?? null}
                   </th>
                 ))}
               </tr>
@@ -376,15 +335,11 @@ export default function SearchTable({
           </thead>
           <tbody>
             {table.getRowModel().rows.map(row => (
-              <tr 
-                key={row.id}
-                onDoubleClick={() => onRowDoubleClick && onRowDoubleClick(row.original)}
-                className="table-row"
-              >
+              <tr key={row.id}>
                 {row.getVisibleCells().map(cell => (
                   <td 
                     key={cell.id}
-                    className={cell.column.id === 'edit' ? 'sticky-column' : ''}
+                    className={cell.column.id === 'actions' ? 'sticky-col' : ''}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
@@ -393,106 +348,112 @@ export default function SearchTable({
             ))}
           </tbody>
         </table>
-
-        <style jsx>{`
-          .table-container {
-            overflow-x: auto;
-            position: relative;
-          }
-
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-
-          th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-          }
-
-          th {
-            background: #f5f5f5;
-            font-weight: 500;
-          }
-
-          .sticky-column {
-            position: sticky;
-            left: 0;
-            z-index: 1;
-            box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
-            background: white;
-          }
-
-          th.sticky-column {
-            z-index: 2;
-            background: #f5f5f5;
-          }
-
-          tr:hover td {
-            background: #f9f9f9;
-          }
-
-          tr:hover td.sticky-column {
-            background: #f9f9f9;
-          }
-
-          /* Add styles for alternating rows if needed */
-          tr:nth-child(even) td.sticky-column {
-            background: white;
-          }
-
-          tr:nth-child(even):hover td.sticky-column {
-            background: #f9f9f9;
-          }
-
-          .action-button {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px;
-            font-size: 16px;
-          }
-
-          .action-button:hover {
-            transform: scale(1.1);
-          }
-        `}</style>
       </div>
 
-      <div className="pagination">
-        <button
-          onClick={() => table.setPageIndex(0)}
-          disabled={!table.getCanPreviousPage()}
-        >
-          {'<<'}
-        </button>
-        <button
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          {'<'}
-        </button>
-        <span>
-          Page{' '}
-          <strong>
-            {table.getState().pagination.pageIndex + 1} of{' '}
-            {table.getPageCount()}
-          </strong>
-        </span>
-        <button
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          {'>'}
-        </button>
-        <button
-          onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-          disabled={!table.getCanNextPage()}
-        >
-          {'>>'}
-        </button>
-      </div>
+      <style jsx>{`
+        .table-container {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+
+        .table-header {
+          padding: 16px;
+          background: white;
+          border-bottom: 1px solid #eee;
+          display: flex;
+          justify-content: flex-end;
+          position: sticky;
+          top: 0;
+          z-index: 2;
+        }
+
+        .table-scroll {
+          overflow: auto;
+          flex: 1;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        thead {
+          position: sticky;
+          top: 0;
+          z-index: 1;
+          background: white;
+        }
+
+        th, td {
+          padding: 12px;
+          text-align: left;
+          border-bottom: 1px solid #ddd;
+        }
+
+        th {
+          background-color: #f5f5f5;
+          font-weight: 500;
+        }
+
+        .sticky-col {
+          position: sticky;
+          left: 0;
+          background: white;
+          z-index: 1;
+          box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+        }
+
+        thead .sticky-col {
+          background: #f5f5f5;
+        }
+
+        .add-button, .edit-button {
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+
+        .add-button {
+          background: #4CAF50;
+          color: white;
+          border: none;
+        }
+
+        .edit-button {
+          background: #2196F3;
+          color: white;
+          border: none;
+        }
+
+        .add-button:hover {
+          background: #45a049;
+        }
+
+        .edit-button:hover {
+          background: #1976D2;
+        }
+
+        .action-buttons {
+          display: flex;
+          gap: 8px;
+        }
+
+        .delete-button {
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+          background: #dc3545;
+          color: white;
+          border: none;
+        }
+
+        .delete-button:hover {
+          background: #c82333;
+        }
+      `}</style>
     </div>
   )
 } 

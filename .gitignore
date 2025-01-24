@@ -34,7 +34,9 @@ docker-compose.yml
 docker-compose.yaml
 
 # Supabase
-supabase/
+supabase/.temp/
+supabase/.branches/
+
 
 # Requirements
 requirements/

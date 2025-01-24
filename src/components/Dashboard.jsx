@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation, useParams, useOutletContext } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import DashboardBody from './DashboardBody'
 
-export default function Dashboard({ session }) {
+export default function Dashboard() {
+  const session = useOutletContext()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [queryId, setQueryId] = useState(null)
   const [mode, setMode] = useState('dashboard') // 'dashboard', 'list', or 'record'

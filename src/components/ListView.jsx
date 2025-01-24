@@ -1,41 +1,22 @@
-import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 import SearchTable from './SearchTable'
-import DataRecord from './DataRecord'
 
-export default function ListView({ queryId, onRecordSelect }) {
-  const [selectedRecord, setSelectedRecord] = useState(null)
-
-  const handleRowDoubleClick = (row) => {
-    setSelectedRecord(row)
-  }
-
-  const handleSave = async (updatedRecord) => {
-    setSelectedRecord(null)
-  }
-
-  const handleCancel = () => {
-    setSelectedRecord(null)
-  }
-
-  const handleAdd = () => {
-    setSelectedRecord({})
-  }
+export default function ListView() {
+  const { queryId } = useParams()
 
   return (
     <div className="list-view">
-      {selectedRecord ? (
-        <DataRecord
-          record={selectedRecord}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
-      ) : (
-        <SearchTable
-          queryId={queryId}
-          onRowDoubleClick={handleRowDoubleClick}
-          onAdd={handleAdd}
-        />
-      )}
+      <SearchTable 
+        queryId={queryId}
+        onAdd={true} // Enable add functionality
+      />
+      
+      <style jsx>{`
+        .list-view {
+          padding: 20px;
+          height: 100%;
+        }
+      `}</style>
     </div>
   )
 } 
