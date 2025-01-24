@@ -58,6 +58,10 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
         throw new Error('Query definition not loaded')
       }
 
+      // Get the current user ID first
+      const { data: { user } } = await supabase.auth.getUser()
+      const userId = user?.id
+
       // Get base query
       let query = supabase.from(currentQueryDef.base_table)
 
@@ -81,12 +85,10 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
       if (Object.keys(whereClause).length > 0) {
         for (const [key, value] of Object.entries(whereClause)) {
           if (value === 'auth.uid()') {
-            const { data: { user } } = await supabase.auth.getUser()
-            query = query.eq(key, user.id)
+            query = query.eq(key, userId)
           } else if (typeof value === 'string' && value.startsWith('(')) {
             // Handle SQL expressions/subqueries
-            const { data: { user } } = await supabase.auth.getUser()
-            const sqlWithUserId = value.replace('auth.uid()', `'${user.id}'`)
+            const sqlWithUserId = value.replace('auth.uid()', `'${userId}'`)
             const { data: subqueryData, error: rpcError } = await supabase.rpc('execute_sql', { 
               sql_query: sqlWithUserId.slice(1, -1)
             })
