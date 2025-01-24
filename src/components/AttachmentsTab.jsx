@@ -40,8 +40,13 @@ export default function AttachmentsTab({ recordId, type = 'ticket' }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
 
-      // Upload file to storage using the correct user ID
-      const filePath = `${user.id}/${type}/${recordId}/${file.name}`
+      // Sanitize the filename - remove special characters and spaces
+      const sanitizedFileName = file.name
+        .replace(/[^a-zA-Z0-9.-]/g, '_')  // Replace special chars with underscore
+        .toLowerCase()                     // Convert to lowercase
+      
+      // Upload file to storage using the correct user ID and sanitized filename
+      const filePath = `${user.id}/${type}/${recordId}/${sanitizedFileName}`
       const { error: uploadError } = await supabase.storage
         .from('attachments')
         .upload(filePath, file)
@@ -55,7 +60,7 @@ export default function AttachmentsTab({ recordId, type = 'ticket' }) {
           entity_type: type,
           entity_id: recordId,
           storage_path: filePath,
-          filename: file.name,
+          filename: file.name,  // Store original filename in database
           size: file.size,
           mime_type: file.type
         })
