@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "paths": {
+    "/process": {
+      "name": "/process",
+      "lambdaFunction": "ticketProcessor",
+      "permissions": {
+        "setting": "private",
+        "auth": [
+          "create",
+          "read",
+          "update",
+          "delete"
+        ]
+      }
+    }
+  }
+} 

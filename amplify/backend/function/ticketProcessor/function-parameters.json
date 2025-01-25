@@ -1,0 +1,11 @@
+{
+  "lambdaLayers": [],
+  "environmentVariables": {
+    "OPENAI_API_KEY": "",
+    "PINECONE_API_KEY": "",
+    "PINECONE_ENVIRONMENT": "",
+    "PINECONE_INDEX": "",
+    "SUPABASE_URL": "",
+    "SUPABASE_SERVICE_ROLE_KEY": ""
+  }
+} 

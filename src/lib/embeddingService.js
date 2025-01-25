@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { supabase } from './supabaseClient'
 import { upsertEmbedding, deleteEmbedding } from './pineconeClient'
-import { API } from 'aws-amplify'
+import { post } from 'aws-amplify/api'
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY
@@ -9,11 +9,15 @@ const openai = new OpenAI({
 
 export async function generateAndStoreEmbedding(content, entityType, entityId) {
   try {
-    const response = await API.post('ticketProcessor', '/process', {
-      body: {
-        content,
-        entityType,
-        entityId
+    const response = await post({
+      apiName: 'ticketProcessor',
+      path: '/process',
+      options: {
+        body: {
+          content,
+          entityType,
+          entityId
+        }
       }
     })
     return response

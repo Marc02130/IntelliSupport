@@ -1,26 +1,39 @@
-import { OpenAI } from 'openai'
-import { PineconeClient } from '@pinecone-database/pinecone'
-import { createClient } from '@supabase/supabase-js'
+const { OpenAI } = require('openai')
+const { PineconeClient } = require('@pinecone-database/pinecone')
+const { createClient } = require('@supabase/supabase-js')
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-})
+let pinecone = null
+let supabase = null
+let openai = null
 
-const pinecone = new PineconeClient()
-await pinecone.init({
-  apiKey: process.env.PINECONE_API_KEY,
-  environment: process.env.PINECONE_ENVIRONMENT
-})
+async function initClients() {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+  }
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
+  if (!pinecone) {
+    pinecone = new PineconeClient()
+    await pinecone.init({
+      apiKey: process.env.PINECONE_API_KEY,
+      environment: process.env.PINECONE_ENVIRONMENT
+    })
+  }
 
-export const handler = async (event) => {
+  if (!supabase) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+  }
+}
+
+exports.handler = async (event) => {
   try {
-    const { body } = event
-    const { content, entityType, entityId } = JSON.parse(body)
+    await initClients()
+    
+    const { content, entityType, entityId } = JSON.parse(event.body)
 
     // Generate embedding
     const response = await openai.embeddings.create({
@@ -56,12 +69,20 @@ export const handler = async (event) => {
 
     return {
       statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "*"
+      },
       body: JSON.stringify(embeddingRecord)
     }
   } catch (error) {
     console.error('Error:', error)
     return {
       statusCode: 500,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "*"
+      },
       body: JSON.stringify({ error: error.message })
     }
   }
