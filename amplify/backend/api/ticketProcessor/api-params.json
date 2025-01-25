@@ -1,0 +1,12 @@
+{
+  "paths": [
+    {
+      "name": "/process",
+      "lambdaFunction": "ticketProcessor",
+      "privacy": {
+        "private": true,
+        "auth": ["create", "read", "update", "delete"]
+      }
+    }
+  ]
+} 

@@ -1,5 +1,6 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Create custom session variable for audit control
 SELECT set_config('session.audit_trigger_enabled', 'TRUE', FALSE);
@@ -296,6 +297,31 @@ CREATE TABLE public.attachments (
     updated_by UUID REFERENCES auth.users(id)
 );
 
+-- Store embeddings for tickets and comments
+CREATE TABLE public.embeddings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('ticket', 'comment')),
+    entity_id UUID NOT NULL,
+    embedding vector(1536), -- For OpenAI embeddings
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES auth.users(id)
+);
+
+-- Store routing decisions and their effectiveness
+CREATE TABLE public.ticket_routing_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_id UUID REFERENCES tickets(id),
+    assigned_to UUID REFERENCES auth.users(id),
+    confidence_score FLOAT,
+    routing_factors JSONB, -- Store factors that influenced the decision
+    was_reassigned BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES auth.users(id)
+);
+
 -- Add indexes
 CREATE INDEX idx_comment_templates_category ON comment_templates(category);
 CREATE INDEX idx_comment_templates_is_active ON comment_templates(is_active);
@@ -336,3 +362,8 @@ CREATE INDEX idx_audit_log_performed_at ON audit_log(performed_at);
 -- Add indexes for better performance
 CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id);
 CREATE INDEX idx_attachments_created_by ON attachments(created_by);
+
+CREATE INDEX idx_embeddings_entity ON embeddings(entity_type, entity_id);
+CREATE INDEX idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops);
+CREATE INDEX idx_ticket_routing_ticket ON ticket_routing_history(ticket_id);
+CREATE INDEX idx_ticket_routing_assigned_to ON ticket_routing_history(assigned_to);

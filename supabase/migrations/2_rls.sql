@@ -847,3 +847,94 @@ USING (
 );
 
 
+
+-- -------------------------- embeddings --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view embeddings for accessible entities" ON public.embeddings;
+
+-- Add RLS policies
+ALTER TABLE public.embeddings ENABLE ROW LEVEL SECURITY;
+
+-- Grant permissions to authenticated users
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.embeddings TO authenticated;
+
+-- Embeddings policies
+CREATE POLICY "Users can view embeddings for accessible entities" ON embeddings
+    FOR SELECT
+    USING (
+        CASE entity_type
+        WHEN 'ticket' THEN
+            EXISTS (
+                SELECT 1 FROM tickets t
+                WHERE t.id = entity_id
+                AND (
+                    t.requester_id = auth.uid()
+                    OR t.assignee_id = auth.uid()
+                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                    OR EXISTS (
+                        SELECT 1 FROM users 
+                        WHERE id = auth.uid() 
+                        AND role IN ('admin', 'agent')
+                    )
+                )
+            )
+        WHEN 'comment' THEN
+            EXISTS (
+                SELECT 1 FROM ticket_comments tc
+                JOIN tickets t ON t.id = tc.ticket_id
+                WHERE tc.id = entity_id
+                AND (
+                    t.requester_id = auth.uid()
+                    OR t.assignee_id = auth.uid()
+                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                    OR EXISTS (
+                        SELECT 1 FROM users 
+                        WHERE id = auth.uid() 
+                        AND role IN ('admin', 'agent')
+                    )
+                )
+            )
+        END
+    );
+
+-- -------------------------- ticket_routing_history --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Users can view routing history for accessible tickets" ON public.ticket_routing_history;
+DROP POLICY IF EXISTS "Only system/admin can manage routing history" ON public.ticket_routing_history;
+
+-- Add RLS policies
+ALTER TABLE public.ticket_routing_history ENABLE ROW LEVEL SECURITY;
+
+-- Grant permissions to authenticated users
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_routing_history TO authenticated;
+
+-- Routing history policies
+CREATE POLICY "Users can view routing history for accessible tickets" ON ticket_routing_history
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM tickets t
+            WHERE t.id = ticket_id
+            AND (
+                t.requester_id = auth.uid()
+                OR t.assignee_id = auth.uid()
+                OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
+                OR EXISTS (
+                    SELECT 1 FROM users 
+                    WHERE id = auth.uid() 
+                    AND role IN ('admin', 'agent')
+                )
+            )
+        )
+    );
+
+-- Only system/admin can insert routing history
+CREATE POLICY "Only system/admin can manage routing history" ON ticket_routing_history
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE id = auth.uid()
+            AND role = 'admin'
+        )
+    ); 

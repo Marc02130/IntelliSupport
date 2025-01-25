@@ -1,0 +1,41 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Lambda Function resource stack",
+  "Parameters": {
+    "env": {
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "LambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "FunctionName": {
+          "Fn::Join": [
+            "-",
+            [
+              "ticketProcessor",
+              {
+                "Ref": "env"
+              }
+            ]
+          ]
+        },
+        "Environment": {
+          "Variables": {
+            "OPENAI_API_KEY": "",
+            "PINECONE_API_KEY": "",
+            "PINECONE_ENVIRONMENT": "",
+            "PINECONE_INDEX": "",
+            "SUPABASE_URL": "",
+            "SUPABASE_SERVICE_ROLE_KEY": ""
+          }
+        },
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Runtime": "nodejs18.x",
+        "Timeout": 25
+      }
+    }
+  }
+} 
