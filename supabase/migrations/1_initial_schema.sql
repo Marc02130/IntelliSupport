@@ -322,48 +322,47 @@ CREATE TABLE public.ticket_routing_history (
     updated_by UUID REFERENCES auth.users(id)
 );
 
--- Add indexes
-CREATE INDEX idx_comment_templates_category ON comment_templates(category);
-CREATE INDEX idx_comment_templates_is_active ON comment_templates(is_active);
-
 COMMENT ON COLUMN search_queries.relationship_type IS 'Type of relationship (one_to_many or many_to_many)';
 COMMENT ON COLUMN search_queries.relationship_join_table IS 'For many_to_many, specifies the junction table';
 COMMENT ON COLUMN search_queries.relationship_local_key IS 'Column in parent table that links to related data';
 COMMENT ON COLUMN search_queries.relationship_foreign_key IS 'Column in child/related table that links back to parent'; 
 
 -- Create indexes for better query performance
-CREATE INDEX idx_tickets_requester ON tickets(requester_id);
-CREATE INDEX idx_tickets_assignee ON tickets(assignee_id);
-CREATE INDEX idx_tickets_organization ON tickets(organization_id);
+CREATE INDEX IF NOT EXISTS idx_comment_templates_category ON comment_templates(category);
+CREATE INDEX IF NOT EXISTS idx_comment_templates_is_active ON comment_templates(is_active);
 
-CREATE INDEX idx_ticket_comments_ticket ON ticket_comments(ticket_id);
-CREATE INDEX idx_ticket_comments_author ON ticket_comments(author_id);
+CREATE INDEX IF NOT EXISTS embeddings_entity_idx ON public.embeddings (entity_type, entity_id);
 
-CREATE INDEX idx_user_knowledge_domain_user ON user_knowledge_domain(user_id);
-CREATE INDEX idx_user_knowledge_domain_domain ON user_knowledge_domain(knowledge_domain_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_requester ON tickets(requester_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_organization ON tickets(organization_id);
 
-CREATE INDEX idx_permissions_parent ON public.permissions(parent_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_comments_author ON ticket_comments(author_id);
 
-CREATE INDEX idx_role_permissions_role ON public.role_permissions(role_id);
-CREATE INDEX idx_role_permissions_permission ON public.role_permissions(permission_id);
+CREATE INDEX IF NOT EXISTS idx_user_knowledge_domain_user ON user_knowledge_domain(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_knowledge_domain_domain ON user_knowledge_domain(knowledge_domain_id);
 
-CREATE INDEX idx_team_members_team ON public.team_members(team_id);
-CREATE INDEX idx_team_members_user ON public.team_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_permissions_parent ON public.permissions(parent_id);
 
-CREATE INDEX idx_team_schedules_team ON public.team_schedules(team_id);
-CREATE INDEX idx_team_schedules_user ON public.team_schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON public.role_permissions(role_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_permission ON public.role_permissions(permission_id);
 
--- Create index on audit log for better query performance
-CREATE INDEX idx_audit_log_table ON audit_log(table_name);
-CREATE INDEX idx_audit_log_record ON audit_log(record_id);
-CREATE INDEX idx_audit_log_performed_by ON audit_log(performed_by);
-CREATE INDEX idx_audit_log_performed_at ON audit_log(performed_at);
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON public.team_members(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user ON public.team_members(user_id);
 
--- Add indexes for better performance
-CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id);
-CREATE INDEX idx_attachments_created_by ON attachments(created_by);
+CREATE INDEX IF NOT EXISTS idx_team_schedules_team ON public.team_schedules(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_schedules_user ON public.team_schedules(user_id);
 
-CREATE INDEX idx_embeddings_entity ON embeddings(entity_type, entity_id);
-CREATE INDEX idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops);
-CREATE INDEX idx_ticket_routing_ticket ON ticket_routing_history(ticket_id);
-CREATE INDEX idx_ticket_routing_assigned_to ON ticket_routing_history(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_audit_log_table ON audit_log(table_name);
+CREATE INDEX IF NOT EXISTS idx_audit_log_record ON audit_log(record_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_performed_by ON audit_log(performed_by);
+CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at);
+
+CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_created_by ON attachments(created_by);
+
+CREATE INDEX IF NOT EXISTS idx_embeddings_entity ON embeddings(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_ticket_routing_ticket ON ticket_routing_history(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_routing_assigned_to ON ticket_routing_history(assigned_to);

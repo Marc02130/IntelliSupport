@@ -60,12 +60,14 @@ USING (true);
 DROP POLICY IF EXISTS "Users can view own data and admins view all" ON public.users;
 DROP POLICY IF EXISTS "Admins can update users" ON public.users;
 DROP POLICY IF EXISTS "Users can update own data" ON public.users;
+DROP POLICY IF EXISTS "Allow service role full access to users" ON public.users;
 
 -- enable RLS
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
+GRANT ALL ON public.users TO service_role;
 
 -- Users can read their own data and admins can read all data
 CREATE POLICY "Users can view own data and admins view all" ON public.users
@@ -88,6 +90,13 @@ CREATE POLICY "Users can update own data" ON public.users
     TO authenticated
     USING (auth.uid() = id);
 
+-- Allow service role full access
+CREATE POLICY "Allow service role full access to users"
+    ON public.users
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- -------------------------- Organizations --------------------------
 -- Drop any existing policies
@@ -291,9 +300,11 @@ DROP POLICY IF EXISTS "Users can delete their tickets" ON public.tickets;
 DROP POLICY IF EXISTS "Admins have full access to tickets" ON public.tickets;
 DROP POLICY IF EXISTS "Users can view their organization's tickets" ON public.tickets;
 DROP POLICY IF EXISTS "Allow trigger to set organization during insert" ON public.tickets;
+DROP POLICY IF EXISTS "Allow service role full access to tickets" ON public.tickets;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tickets TO authenticated;
+GRANT ALL ON public.tickets TO service_role;
 
 -- Enable RLS on tickets table
 ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
@@ -359,6 +370,13 @@ CREATE POLICY "Users can delete their tickets" ON public.tickets
 CREATE POLICY "Admins have full access to tickets" ON public.tickets
     USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
+-- Allow full access to service role
+CREATE POLICY "Allow service role full access to tickets"
+    ON public.tickets
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- -------------------------- Teams --------------------------
 -- Drop any existing policies
@@ -562,9 +580,10 @@ DROP POLICY IF EXISTS "Authenticated can insert audit log" ON public.audit_log;
 DROP POLICY IF EXISTS "Authenticated can update audit log" ON public.audit_log;
 DROP POLICY IF EXISTS "Authenticated can view audit log" ON public.audit_log;
 DROP POLICY IF EXISTS "Allow trigger to insert audit log" ON public.audit_log;
+DROP POLICY IF EXISTS "Allow service role full access to audit_log" ON public.audit_log;
 
 -- Grant basic table permissions
-GRANT SELECT, INSERT, UPDATE ON public.audit_log TO authenticated;
+GRANT ALL ON public.audit_log TO authenticated, service_role;
 
 -- Enable RLS
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
@@ -586,6 +605,14 @@ CREATE POLICY "Authenticated can update audit log" ON public.audit_log
 -- Allow all authenticated users to view audit logs
 CREATE POLICY "Authenticated can view audit log" ON public.audit_log
     FOR SELECT TO authenticated;
+
+-- Allow service role full access to audit_log
+CREATE POLICY "Allow service role full access to audit_log"
+    ON public.audit_log
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- -------------------------- Team Schedules  --------------------------
 -- Drop any existing policies
@@ -846,71 +873,31 @@ USING (
     )
 );
 
-
-
--- -------------------------- embeddings --------------------------
--- Drop any existing policies
-DROP POLICY IF EXISTS "Users can view embeddings for accessible entities" ON public.embeddings;
-
--- Add RLS policies
-ALTER TABLE public.embeddings ENABLE ROW LEVEL SECURITY;
-
--- Grant permissions to authenticated users
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.embeddings TO authenticated;
-
--- Embeddings policies
-CREATE POLICY "Users can view embeddings for accessible entities" ON embeddings
-    FOR SELECT
-    USING (
-        CASE entity_type
-        WHEN 'ticket' THEN
-            EXISTS (
-                SELECT 1 FROM tickets t
-                WHERE t.id = entity_id
-                AND (
-                    t.requester_id = auth.uid()
-                    OR t.assignee_id = auth.uid()
-                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-                    OR EXISTS (
-                        SELECT 1 FROM users 
-                        WHERE id = auth.uid() 
-                        AND role IN ('admin', 'agent')
-                    )
-                )
-            )
-        WHEN 'comment' THEN
-            EXISTS (
-                SELECT 1 FROM ticket_comments tc
-                JOIN tickets t ON t.id = tc.ticket_id
-                WHERE tc.id = entity_id
-                AND (
-                    t.requester_id = auth.uid()
-                    OR t.assignee_id = auth.uid()
-                    OR t.organization_id IN (SELECT organization_id FROM users WHERE id = auth.uid())
-                    OR EXISTS (
-                        SELECT 1 FROM users 
-                        WHERE id = auth.uid() 
-                        AND role IN ('admin', 'agent')
-                    )
-                )
-            )
-        END
-    );
-
--- -------------------------- ticket_routing_history --------------------------
+-- -------------------------- Ticket Routing History --------------------------
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Users can view routing history for accessible tickets" ON public.ticket_routing_history;
 DROP POLICY IF EXISTS "Only system/admin can manage routing history" ON public.ticket_routing_history;
+DROP POLICY IF EXISTS "Allow service role full access to routing history" ON public.ticket_routing_history;
 
 -- Add RLS policies
 ALTER TABLE public.ticket_routing_history ENABLE ROW LEVEL SECURITY;
 
--- Grant permissions to authenticated users
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_routing_history TO authenticated;
+-- Grant permissions to authenticated users and service role
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_routing_history TO authenticated, service_role;
 
--- Routing history policies
-CREATE POLICY "Users can view routing history for accessible tickets" ON ticket_routing_history
+-- Allow full access to service role
+CREATE POLICY "Allow service role full access to routing history"
+    ON public.ticket_routing_history
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Routing history policies for authenticated users
+CREATE POLICY "Users can view routing history for accessible tickets" 
+    ON ticket_routing_history
     FOR SELECT
+    TO authenticated
     USING (
         EXISTS (
             SELECT 1 FROM tickets t
