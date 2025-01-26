@@ -16,41 +16,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Generate embedding
     const embedding = await openai.generateEmbedding(content);
 
-    // Store embedding using service method
-    const embeddingRecord = await supabase.storeEmbedding({
-      entity_type: entityType,
-      entity_id: entityId,
-      embedding
+    // Store embedding in Pinecone
+    await pinecone.upsertEmbedding(entityId, embedding, {
+      type: entityType,
+      content,
+      created_at: new Date().toISOString()
     });
-
-    // Store in Pinecone with metadata
-    await pinecone.upsertEmbedding(
-      embeddingRecord.id,
-      embedding,
-      {
-        type: entityType,
-        content,
-        created_at: new Date().toISOString()
-      }
-    );
 
     return {
       statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*"
-      },
-      body: JSON.stringify(embeddingRecord)
+      body: JSON.stringify({ success: true })
     };
   } catch (error) {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*"
-      },
-      body: JSON.stringify({ error: (error as Error).message })
+      body: JSON.stringify({ error: 'Failed to process ticket' })
     };
   }
 };
