@@ -1,5 +1,50 @@
 import { Pinecone, PineconeRecord, ScoredPineconeRecord } from '@pinecone-database/pinecone';
 
+interface TeamMetadata {
+  id: string;
+  name: string;
+  is_active: boolean;
+  last_updated: string;
+  tags: string[];
+  members: Array<{
+    user_id: string;
+    role: string;
+    is_active: boolean;
+    last_updated: string;
+  }>;
+  schedule: Array<{
+    user_id: string;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+    last_updated: string;
+  }>;
+}
+
+interface UserMetadata {
+  id: string;
+  organization_id: string;
+  last_updated: string;
+  knowledge_domains: Array<{
+    id: string;
+    name: string;
+    description: string;
+    years_experience: number;
+    expertise: string[];
+    credentials: string;
+    last_updated: string;
+  }>;
+}
+
+interface ResourceMetadata {
+  type: 'team' | 'user';
+  organization_id: string;
+  team?: TeamMetadata;
+  user?: UserMetadata;
+  created_at: string;
+  [key: string]: any;  // Add index signature for RecordMetadata constraint
+}
+
 export type BaseMetadata = {
   content: string;
   created_at: string;
@@ -9,6 +54,18 @@ export type BaseMetadata = {
 
 export type TicketMetadata = BaseMetadata & {
   type: 'ticket';
+  id: string;
+  organization_id: string;
+  last_updated: string;
+  status: string;
+  assigned_to?: string;
+  requested_by: string;
+  team_id?: string;
+  tags: string[];
+  priority: string;
+  subject: string;
+  description: string;
+  [key: string]: any;
 };
 
 export type CommentMetadata = BaseMetadata & {
@@ -16,7 +73,7 @@ export type CommentMetadata = BaseMetadata & {
   ticket_id: string;
 };
 
-export type PineconeMetadata = TicketMetadata | CommentMetadata;
+export type PineconeMetadata = TicketMetadata | CommentMetadata | ResourceMetadata;
 
 export class PineconeService {
   private client: Pinecone;
@@ -106,6 +163,50 @@ export class PineconeService {
       }
     );
     return results as ScoredPineconeRecord<CommentMetadata>[];
+  }
+
+  async batchUpsertEmbeddings(
+    records: Array<{
+      id: string;
+      values: number[];
+      metadata: PineconeMetadata;
+    }>,
+    batchSize = 100
+  ): Promise<void> {
+    const index = this.client.index(this.indexName);
+    
+    try {
+      // Process in batches to avoid rate limits
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+        await index.upsert(batch);
+        
+        // Optional: Add delay between batches if needed
+        if (i + batchSize < records.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    } catch (error) {
+      throw new Error(`Failed to batch upsert embeddings: ${error}`);
+    }
+  }
+
+  async deleteStaleRecords(
+    organizationId: string,
+    beforeTimestamp: string
+  ): Promise<void> {
+    const index = this.client.index(this.indexName);
+    
+    try {
+      await index.deleteMany({
+        filter: {
+          organization_id: { $eq: organizationId },
+          last_updated: { $lt: beforeTimestamp }
+        }
+      });
+    } catch (error) {
+      throw new Error(`Failed to delete stale records: ${error}`);
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import { OpenAIService } from '../../services/openai';
 import { PineconeService } from '../../services/pinecone';
 import { SupabaseService } from '../../services/supabase';
+import { TicketMetadata } from '../../services/pinecone';
 import dotenv from 'dotenv';
 
 // Load test environment variables
@@ -26,7 +27,16 @@ describe('Embedding Integration', () => {
       embedding,
       {
         type: 'ticket',
+        id: 'test-ticket-123',
+        organization_id: 'test-org',
         content: testContent,
+        last_updated: new Date().toISOString(),
+        status: 'open',
+        requested_by: 'test-user',
+        tags: ['javascript', 'error'],
+        priority: 'medium',
+        subject: 'JavaScript Error',
+        description: testContent,
         created_at: new Date().toISOString()
       }
     );
@@ -34,10 +44,17 @@ describe('Embedding Integration', () => {
     // Add delay to allow Pinecone to index
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Query to verify storage
-    const results = await pinecone.queryEmbeddings(embedding, { type: 'ticket' }, 1);
+    // Query with filter to ensure we get the right record
+    const results = await pinecone.queryEmbeddings(
+      embedding, 
+      { 
+        type: 'ticket',
+        id: 'test-ticket-123'  // Add ID to filter
+      }, 
+      1
+    );
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].metadata?.content).toBe(testContent);
+    expect((results[0].metadata as TicketMetadata).description).toBe(testContent);
   }, 10000); // 10 second timeout
 
   it('should process a ticket and store routing history', async () => {
@@ -56,7 +73,16 @@ describe('Embedding Integration', () => {
       embedding,
       {
         type: 'ticket',
-        content: testContent,
+        id: 'test-ticket-123',
+        organization_id: 'test-org',
+        content: testContent,  // Required by BaseMetadata
+        last_updated: new Date().toISOString(),
+        status: 'open',
+        requested_by: 'test-user',
+        tags: ['javascript', 'error'],
+        priority: 'medium',
+        subject: 'JavaScript Error',
+        description: testContent,
         created_at: new Date().toISOString()
       }
     );

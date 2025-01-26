@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@aws-amplify/backend": "^1.14.0",
+    "@langchain/core": "^0.3.36",
+    "@langchain/openai": "^0.4.2",
     "@pinecone-database/pinecone": "^2.0.0",
     "@supabase/supabase-js": "^2.39.3",
     "openai": "^4.28.0"

@@ -20,6 +20,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     await pinecone.upsertEmbedding(entityId, embedding, {
       type: entityType,
       content,
+      organization_id: event.requestContext.authorizer?.claims?.['custom:organization_id'] || '',
       created_at: new Date().toISOString()
     });
 
