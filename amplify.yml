@@ -3,6 +3,8 @@ frontend:
   phases:
     preBuild:
       commands:
+        - nvm install 18.19.0  # Install the required Node.js version
+        - nvm use 18.19.0      # Use the installed version
         - npm ci
     build:
       commands:
