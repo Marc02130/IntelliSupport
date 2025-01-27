@@ -687,3 +687,70 @@ CREATE TRIGGER queue_ticket_tag_changes
     ON ticket_tags
     FOR EACH ROW
     EXECUTE FUNCTION queue_ticket_on_tag_change();
+
+-- Function to clean up embeddings when team members change
+CREATE OR REPLACE FUNCTION cleanup_team_member_embeddings()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Queue the team for re-embedding when members are removed
+    INSERT INTO embedding_queue (
+        entity_id,
+        content,
+        metadata
+    )
+    SELECT 
+        t.id,
+        t.name || ' ' || COALESCE(t.description, ''),
+        jsonb_build_object(
+            'type', 'team',
+            'id', t.id,
+            'organization_id', t.organization_id,
+            'name', t.name,
+            'is_active', t.is_active,
+            'last_updated', t.updated_at,
+            'tags', (SELECT array_agg(tags.name) FROM team_tags tt JOIN tags ON tags.id = tt.tag_id WHERE tt.team_id = t.id),
+            'members', (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'user_id', tm.user_id,
+                    'role', tm.role,
+                    'is_active', tm.is_active,
+                    'last_updated', tm.updated_at
+                ))
+                FROM team_members tm
+                WHERE tm.team_id = t.id
+            ),
+            'schedule', (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'user_id', ts.user_id,
+                    'start_time', ts.start_time,
+                    'end_time', ts.end_time,
+                    'is_active', true,
+                    'last_updated', ts.updated_at
+                ))
+                FROM team_schedules ts
+                WHERE ts.team_id = t.id
+            )
+        )
+    FROM teams t
+    WHERE t.id = OLD.team_id;
+    
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers for team member changes
+CREATE TRIGGER queue_team_member_deletion
+    AFTER DELETE ON team_members
+    FOR EACH ROW
+    EXECUTE FUNCTION cleanup_team_member_embeddings();
+
+-- Similar triggers for team_schedules and team_tags
+CREATE TRIGGER queue_team_schedule_deletion
+    AFTER DELETE ON team_schedules
+    FOR EACH ROW
+    EXECUTE FUNCTION cleanup_team_member_embeddings();
+
+CREATE TRIGGER queue_team_tag_deletion
+    AFTER DELETE ON team_tags
+    FOR EACH ROW
+    EXECUTE FUNCTION cleanup_team_member_embeddings();

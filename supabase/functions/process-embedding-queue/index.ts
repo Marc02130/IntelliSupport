@@ -1,9 +1,20 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Configuration, OpenAIApi } from 'https://esm.sh/openai@4.12.1'
+import { PineconeClient } from 'https://esm.sh/@pinecone-database/pinecone@1.1.2'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const openaiKey = Deno.env.get('OPENAI_API_KEY')!
+const pineconeKey = Deno.env.get('PINECONE_API_KEY')!
+const pineconeEnv = Deno.env.get('PINECONE_ENVIRONMENT')!
+const pineconeIndex = Deno.env.get('PINECONE_INDEX')!
+
+// Initialize Pinecone
+const pinecone = new PineconeClient()
+await pinecone.init({
+  environment: pineconeEnv,
+  apiKey: pineconeKey,
+})
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 const openai = new OpenAIApi(new Configuration({ apiKey: openaiKey }))
@@ -30,7 +41,17 @@ Deno.serve(async (req) => {
           input: item.content
         })
 
-        // Store embedding
+        // Store in Pinecone
+        const index = pinecone.Index(pineconeIndex)
+        await index.upsert({
+          vectors: [{
+            id: `${item.metadata.type}_${item.entity_id}`,
+            values: embedding.data.data[0].embedding,
+            metadata: item.metadata
+          }]
+        })
+
+        // Store reference in Supabase
         const { error: insertError } = await supabase
           .from('embeddings')
           .insert({

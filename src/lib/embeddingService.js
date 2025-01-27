@@ -1,23 +1,5 @@
 import { supabase } from './supabaseClient'
 
-export async function generateAndStoreEmbedding(content, entityType, entityId) {
-  try {
-    const { data, error } = await supabase.functions.invoke('process-embeddings', {
-      body: {
-        content,
-        entityType,
-        entityId
-      }
-    })
-    
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error processing embedding:', error)
-    throw error
-  }
-}
-
 export async function deleteEntityEmbedding(entityType, entityId) {
   try {
     // Get embedding record from Supabase

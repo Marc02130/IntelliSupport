@@ -932,10 +932,11 @@ DROP POLICY IF EXISTS "Allow service role full access to embedding_queue" ON pub
 DROP POLICY IF EXISTS "Allow authenticated users to view embedding queue" ON public.embedding_queue;
 DROP POLICY IF EXISTS "Allow authenticated users to insert into embedding_queue" ON public.embedding_queue;
 DROP POLICY IF EXISTS "Allow users to read their own queue entries" ON public.embedding_queue;
+DROP POLICY IF EXISTS "Allow authenticated users to delete from embedding_queue" ON public.embedding_queue;
 
 -- Grant table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.embedding_queue TO service_role;
-GRANT SELECT, INSERT ON public.embedding_queue TO authenticated;  -- Allow INSERT for authenticated users
+GRANT SELECT, INSERT, DELETE ON public.embedding_queue TO authenticated;  -- Allow INSERT for authenticated users
 
 -- Enable RLS
 ALTER TABLE public.embedding_queue ENABLE ROW LEVEL SECURITY;
@@ -946,6 +947,13 @@ CREATE POLICY "Allow service role full access to embedding_queue"
     FOR ALL
     TO service_role
     USING (true)
+    WITH CHECK (true);
+
+-- Allow authenticated users to delete from queue
+CREATE POLICY "Allow authenticated users to delete from embedding_queue"
+    ON public.embedding_queue
+    FOR DELETE
+    TO authenticated
     WITH CHECK (true);
 
 -- Allow authenticated users to insert into queue
