@@ -8,7 +8,7 @@ frontend:
         - npm ci
     build:
       commands:
-        - npm run build
+        - VITE_BASE_URL=./ npm run build  # Add base URL for relative paths
         - ls -la build  # Add this to verify build output
         - cat build/index.html  # And this to check the entry point
   artifacts:
@@ -28,6 +28,10 @@ frontend:
         - key: 'Cache-Control'
           value: 'no-store'
   redirects:
-    - source: '</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>'
+    - source: '/*'  # Simplified pattern
+      target: '/index.html'
+      status: '200'
+  rewrites:
+    - source: '/*'
       target: '/index.html'
       status: '200'
