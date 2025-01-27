@@ -754,3 +754,23 @@ CREATE TRIGGER queue_team_tag_deletion
     AFTER DELETE ON team_tags
     FOR EACH ROW
     EXECUTE FUNCTION cleanup_team_member_embeddings();
+
+-- Create a function to process the queue
+CREATE OR REPLACE FUNCTION process_embedding_queue() 
+RETURNS void AS $$
+BEGIN
+  PERFORM net.http_post(
+    url:='https://ntlxuoqhpzckyvzpmicn.supabase.co/functions/v1/process-embedding-queue',
+    headers:=jsonb_build_object(
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+    )
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule the queue processor
+SELECT cron.schedule(
+    'process-embedding-queue-every-15m',
+    '*/15 * * * *',
+    'SELECT process_embedding_queue();'
+);

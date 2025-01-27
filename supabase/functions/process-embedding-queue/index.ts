@@ -1,32 +1,45 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Configuration, OpenAIApi } from 'https://esm.sh/openai@4.12.1'
-import { PineconeClient } from 'https://esm.sh/@pinecone-database/pinecone@1.1.2'
+import { createClient } from '@supabase/supabase-js'
+import { Configuration, OpenAIApi } from 'openai'
+import { PineconeClient } from '@pinecone-database/pinecone'
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const openaiKey = Deno.env.get('OPENAI_API_KEY')!
-const pineconeKey = Deno.env.get('PINECONE_API_KEY')!
-const pineconeEnv = Deno.env.get('PINECONE_ENVIRONMENT')!
-const pineconeIndex = Deno.env.get('PINECONE_INDEX')!
+// Initialize clients
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+)
 
-// Initialize Pinecone
+const openai = new OpenAIApi(
+  new Configuration({ 
+    apiKey: Deno.env.get('OPENAI_API_KEY') 
+  })
+)
+
 const pinecone = new PineconeClient()
 await pinecone.init({
-  environment: pineconeEnv,
-  apiKey: pineconeKey,
+  environment: Deno.env.get('PINECONE_ENVIRONMENT') ?? '',
+  apiKey: Deno.env.get('PINECONE_API_KEY') ?? ''
 })
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-const openai = new OpenAIApi(new Configuration({ apiKey: openaiKey }))
-
+// Serve function
 Deno.serve(async (req) => {
   try {
+    console.log('Function started')
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!Deno.env.get('SUPABASE_URL'),
+      hasSupabaseKey: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+      hasOpenAI: !!Deno.env.get('OPENAI_API_KEY'),
+      hasPinecone: !!Deno.env.get('PINECONE_API_KEY')
+    })
+
     // Get pending items from queue (limit batch size)
     const { data: queueItems, error: fetchError } = await supabase
       .from('embedding_queue')
       .select('*')
       .limit(50)  // Process in batches
 
+    console.log('Queue items:', queueItems?.length || 0)
+    console.log('Processing queue items:', queueItems?.length || 0)
+    console.log('Sample item:', queueItems?.[0])
     if (fetchError) throw fetchError
     if (!queueItems?.length) {
       return new Response(JSON.stringify({ message: 'No items to process' }))
@@ -42,7 +55,7 @@ Deno.serve(async (req) => {
         })
 
         // Store in Pinecone
-        const index = pinecone.Index(pineconeIndex)
+        const index = pinecone.Index(item.metadata.type)
         await index.upsert({
           vectors: [{
             id: `${item.metadata.type}_${item.entity_id}`,

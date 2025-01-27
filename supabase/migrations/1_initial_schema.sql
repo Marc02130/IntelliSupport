@@ -1,6 +1,9 @@
--- Enable UUID extension
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS http;
+CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- Create custom session variable for audit control
 SELECT set_config('session.audit_trigger_enabled', 'TRUE', FALSE);
