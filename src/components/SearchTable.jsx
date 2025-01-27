@@ -155,37 +155,24 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
     try {
       let query = supabase.from(queryDef.base_table).delete()
 
-      // If this is a child table (has parent_field), use that for deletion
-      if (queryDef.parent_field && queryDef.parent_table) {
-        // For junction tables, we need both the parent field and the other key
-        const keys = Object.keys(record).filter(key => 
-          // Only include actual table fields, not computed or joined fields
-          key !== 'created_at' && 
-          key !== 'updated_at' &&
-          !key.includes(':') && // Exclude joined fields (they have colons)
-          !key.includes('_name') && // Exclude computed name fields
-          !key.includes('tag_name') && // Specifically exclude tag_name
-          !key.includes('user_domain') && // Exclude the problematic field
-          record[key] !== null // Exclude null values
-        )
-        
-        console.log('Deleting with keys:', keys.map(k => `${k}: ${record[k]}`))
-        
-        // Apply each key to the query, with additional null check
-        keys.forEach(key => {
-          if (record[key] !== null && record[key] !== undefined) {
-            query = query.eq(key, record[key])
-          }
-        })
-      } else {
-        // Regular table with id column
-        query = query.eq('id', record.id)
-      }
+      // Get the column definitions that are actual table fields (not computed/joined)
+      const tableColumns = queryDef.column_definitions.filter(col => 
+        !col.hidden && 
+        !col.type?.includes('computed') &&
+        col.accessorKey // Must have an accessor key
+      )
+
+      // Use the accessorKey values to build the delete query
+      tableColumns.forEach(col => {
+        const value = record[col.accessorKey]
+        if (value !== null && value !== undefined) {
+          query = query.eq(col.accessorKey, value)
+        }
+      })
 
       const { error } = await query
       if (error) throw error
 
-      // Refresh data after delete
       await loadData(queryDef)
     } catch (err) {
       console.error('Error deleting record:', err)

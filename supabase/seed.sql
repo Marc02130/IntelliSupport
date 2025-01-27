@@ -1407,13 +1407,13 @@ INSERT INTO search_queries (
     'team_id',
     jsonb_build_object(
         'select', 'id, team_id, user_id, role, is_active,
-        user:users!fk_team_members_user(id, full_name, email)'
+        user_details:users!fk_team_members_user(id, full_name, email)'
     ),
     jsonb_build_array(
         jsonb_build_object(
             'header', 'Member',
             'accessorKey', 'user_id',
-            'aliasName', 'user',
+            'aliasName', 'user_details',
             'type', 'uuid',
             'foreignKey', jsonb_build_object(
                 'table', 'users',

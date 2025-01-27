@@ -954,7 +954,7 @@ CREATE POLICY "Allow authenticated users to delete from embedding_queue"
     ON public.embedding_queue
     FOR DELETE
     TO authenticated
-    WITH CHECK (true);
+    USING (true);
 
 -- Allow authenticated users to insert into queue
 CREATE POLICY "Allow authenticated users to insert into embedding_queue"
