@@ -994,3 +994,25 @@ USING (
     WHERE t.organization_id = (embedding_queue.metadata->>'organization_id')::uuid
   )
 );
+
+-- -------------------------- Embeddings --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Allow service role full access" ON public.embeddings;
+DROP POLICY IF EXISTS "Allow authenticated read access" ON public.embeddings;
+
+-- Grant table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.embeddings TO service_role;
+GRANT SELECT ON public.embeddings TO authenticated;
+
+-- Add after embeddings table creation
+ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow service role full access" ON embeddings
+  FOR ALL
+  TO service_role
+  USING (true);
+
+CREATE POLICY "Allow authenticated read access" ON embeddings
+  FOR SELECT
+  TO authenticated
+  USING (true);

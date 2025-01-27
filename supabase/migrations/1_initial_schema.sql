@@ -300,18 +300,6 @@ CREATE TABLE public.attachments (
     updated_by UUID REFERENCES auth.users(id)
 );
 
--- Store embeddings for tickets and comments
-CREATE TABLE public.embeddings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    entity_type TEXT NOT NULL CHECK (entity_type IN ('ticket', 'comment')),
-    entity_id UUID NOT NULL,
-    embedding vector(1536), -- For OpenAI embeddings
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID REFERENCES auth.users(id),
-    updated_by UUID REFERENCES auth.users(id)
-);
-
 -- Store routing decisions and their effectiveness
 CREATE TABLE public.ticket_routing_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -335,6 +323,17 @@ CREATE TABLE embedding_queue (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- We need to create the embeddings table
+CREATE TABLE IF NOT EXISTS embeddings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  content TEXT NOT NULL,
+  embedding vector(3072),
+  entity_type TEXT NOT NULL,
+  entity_id UUID NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 COMMENT ON COLUMN search_queries.relationship_type IS 'Type of relationship (one_to_many or many_to_many)';
 COMMENT ON COLUMN search_queries.relationship_join_table IS 'For many_to_many, specifies the junction table';
 COMMENT ON COLUMN search_queries.relationship_local_key IS 'Column in parent table that links to related data';
@@ -344,7 +343,9 @@ COMMENT ON COLUMN search_queries.relationship_foreign_key IS 'Column in child/re
 CREATE INDEX IF NOT EXISTS idx_comment_templates_category ON comment_templates(category);
 CREATE INDEX IF NOT EXISTS idx_comment_templates_is_active ON comment_templates(is_active);
 
-CREATE INDEX IF NOT EXISTS embeddings_entity_idx ON public.embeddings (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_embeddings_entity_type ON embeddings(entity_type);
+CREATE INDEX IF NOT EXISTS idx_embeddings_entity_id ON embeddings(entity_id);
+CREATE INDEX IF NOT EXISTS idx_embeddings_created_at ON embeddings(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_tickets_requester ON tickets(requester_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee_id);
@@ -375,7 +376,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at)
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_created_by ON attachments(created_by);
 
-CREATE INDEX IF NOT EXISTS idx_embeddings_entity ON embeddings(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_ticket_routing_ticket ON ticket_routing_history(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_routing_assigned_to ON ticket_routing_history(assigned_to);
+
+-- Add metadata index
+CREATE INDEX IF NOT EXISTS idx_embeddings_metadata ON embeddings USING GIN (metadata);
