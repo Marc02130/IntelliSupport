@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
-import { Configuration, OpenAIApi } from 'openai'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { Configuration, OpenAIApi } from 'https://esm.sh/openai@4.12.1'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

@@ -687,38 +687,3 @@ CREATE TRIGGER queue_ticket_tag_changes
     ON ticket_tags
     FOR EACH ROW
     EXECUTE FUNCTION queue_ticket_on_tag_change();
-
--- Policy to allow authenticated users to insert into embedding_queue
-CREATE POLICY "Allow authenticated users to insert into embedding_queue"
-ON embedding_queue
-FOR INSERT
-TO authenticated
-WITH CHECK (true);
-
--- Policy to allow authenticated users to read their own queue entries
-CREATE POLICY "Allow users to read their own queue entries"
-ON embedding_queue
-FOR SELECT
-TO authenticated
-USING (
-  auth.uid() IN (
-    SELECT tm.user_id 
-    FROM team_members tm
-    JOIN teams t ON t.id = tm.team_id
-    WHERE t.organization_id = (embedding_queue.metadata->>'organization_id')::uuid
-  )
-);
-
--- Policy to allow authenticated users to delete their own queue entries
-CREATE POLICY "Allow users to delete their own queue entries"
-ON embedding_queue
-FOR DELETE
-TO authenticated
-USING (
-  auth.uid() IN (
-    SELECT tm.user_id 
-    FROM team_members tm
-    JOIN teams t ON t.id = tm.team_id
-    WHERE t.organization_id = (metadata->>'organization_id')::uuid
-  )
-);

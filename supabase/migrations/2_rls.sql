@@ -930,15 +930,17 @@ CREATE POLICY "Only system/admin can manage routing history" ON ticket_routing_h
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Allow service role full access to embedding_queue" ON public.embedding_queue;
 DROP POLICY IF EXISTS "Allow authenticated users to view embedding queue" ON public.embedding_queue;
+DROP POLICY IF EXISTS "Allow authenticated users to insert into embedding_queue" ON public.embedding_queue;
+DROP POLICY IF EXISTS "Allow users to read their own queue entries" ON public.embedding_queue;
 
--- Grant basic table permissions
+-- Grant table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.embedding_queue TO service_role;
-GRANT SELECT ON public.embedding_queue TO authenticated;
+GRANT SELECT, INSERT ON public.embedding_queue TO authenticated;  -- Allow INSERT for authenticated users
 
 -- Enable RLS
 ALTER TABLE public.embedding_queue ENABLE ROW LEVEL SECURITY;
 
--- Allow service role full access (for Lambda function)
+-- Allow service role full access (for background processes)
 CREATE POLICY "Allow service role full access to embedding_queue"
     ON public.embedding_queue
     FOR ALL
@@ -946,11 +948,11 @@ CREATE POLICY "Allow service role full access to embedding_queue"
     USING (true)
     WITH CHECK (true);
 
--- Allow database triggers to insert
-CREATE POLICY "Allow system to insert into embedding queue"
+-- Allow authenticated users to insert into queue
+CREATE POLICY "Allow authenticated users to insert into embedding_queue"
     ON public.embedding_queue
     FOR INSERT
-    TO postgres
+    TO authenticated
     WITH CHECK (true);
 
 -- Allow authenticated users to view their organization's queue
@@ -969,4 +971,18 @@ CREATE POLICY "Allow authenticated users to view embedding queue"
             WHERE id = auth.uid()
             AND role = 'admin'
         )
-    ); 
+    );
+
+-- Policy to allow authenticated users to read their own queue entries
+CREATE POLICY "Allow users to read their own queue entries"
+ON embedding_queue
+FOR SELECT
+TO authenticated
+USING (
+  auth.uid() IN (
+    SELECT tm.user_id 
+    FROM team_members tm
+    JOIN teams t ON t.id = tm.team_id
+    WHERE t.organization_id = (embedding_queue.metadata->>'organization_id')::uuid
+  )
+);
