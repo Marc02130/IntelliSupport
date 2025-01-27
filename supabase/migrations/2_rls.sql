@@ -924,4 +924,49 @@ CREATE POLICY "Only system/admin can manage routing history" ON ticket_routing_h
             WHERE id = auth.uid()
             AND role = 'admin'
         )
+    );
+
+-- -------------------------- Embedding Queue --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Allow service role full access to embedding_queue" ON public.embedding_queue;
+DROP POLICY IF EXISTS "Allow authenticated users to view embedding queue" ON public.embedding_queue;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.embedding_queue TO service_role;
+GRANT SELECT ON public.embedding_queue TO authenticated;
+
+-- Enable RLS
+ALTER TABLE public.embedding_queue ENABLE ROW LEVEL SECURITY;
+
+-- Allow service role full access (for Lambda function)
+CREATE POLICY "Allow service role full access to embedding_queue"
+    ON public.embedding_queue
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Allow database triggers to insert
+CREATE POLICY "Allow system to insert into embedding queue"
+    ON public.embedding_queue
+    FOR INSERT
+    TO postgres
+    WITH CHECK (true);
+
+-- Allow authenticated users to view their organization's queue
+CREATE POLICY "Allow authenticated users to view embedding queue"
+    ON public.embedding_queue
+    FOR SELECT
+    TO authenticated
+    USING (
+        metadata->>'organization_id' = (
+            SELECT organization_id::text 
+            FROM users 
+            WHERE id = auth.uid()
+        )
+        OR EXISTS (
+            SELECT 1 FROM users
+            WHERE id = auth.uid()
+            AND role = 'admin'
+        )
     ); 

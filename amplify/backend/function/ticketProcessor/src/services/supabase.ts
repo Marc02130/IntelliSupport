@@ -213,6 +213,16 @@ export class SupabaseService {
 
     return agents[0].id;
   }
+  
+  async getPendingEmbeddings(batchSize: number = 100) {
+    const { data, error } = await this.client
+      .from('embedding_queue')
+      .select('*')
+      .limit(batchSize);
+    
+    if (error) throw error;
+    return data;
+  }
 
   async getTestTicket(): Promise<string> {
     const { data: tickets, error } = await this.client
@@ -226,5 +236,14 @@ export class SupabaseService {
     }
 
     return tickets[0].id;
+  }
+
+  async deletePendingEmbeddings(ids: string[]) {
+    const { error } = await this.client
+      .from('embedding_queue')
+      .delete()
+      .in('id', ids);
+      
+    if (error) throw error;
   }
 } 

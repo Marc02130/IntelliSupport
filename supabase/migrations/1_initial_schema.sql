@@ -322,6 +322,16 @@ CREATE TABLE public.ticket_routing_history (
     updated_by UUID REFERENCES auth.users(id)
 );
 
+-- When content changes, it's added to embedding_queue
+CREATE TABLE embedding_queue (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entity_id TEXT NOT NULL,
+  content TEXT NOT NULL,
+  embedding VECTOR(3072), -- optional, might be NULL
+  metadata JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 COMMENT ON COLUMN search_queries.relationship_type IS 'Type of relationship (one_to_many or many_to_many)';
 COMMENT ON COLUMN search_queries.relationship_join_table IS 'For many_to_many, specifies the junction table';
 COMMENT ON COLUMN search_queries.relationship_local_key IS 'Column in parent table that links to related data';
