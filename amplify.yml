@@ -8,9 +8,9 @@ frontend:
         - npm ci
     build:
       commands:
-        - VITE_BASE_URL=./ npm run build  # Add base URL for relative paths
-        - ls -la build  # Add this to verify build output
-        - cat build/index.html  # And this to check the entry point
+        - npm run build
+        - ls -la build
+        - cat build/index.html
   artifacts:
     baseDirectory: build    # Changed from 'dist' to 'build'
     files:
@@ -31,7 +31,7 @@ frontend:
       headers:
         - key: 'X-Frame-Options'
           value: 'SAMEORIGIN'
-  rewrites:
+  redirects:
     - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/'
       target: '/index.html'
       status: '200'
