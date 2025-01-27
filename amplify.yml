@@ -1,16 +1,10 @@
 version: 1
-backend:
-  phases:
-    build:
-      commands:
-        - '# Execute Amplify CLI with the helper script'
-        - amplifyPush --simple
 frontend:
   phases:
     preBuild:
       commands:
-        - nvm install 18.19.0  # Install the required Node.js version
-        - nvm use 18.19.0      # Use the installed version
+        - nvm install 18.19.0
+        - nvm use 18.19.0
         - npm ci
     build:
       commands:
@@ -18,7 +12,7 @@ frontend:
         - ls -la build
         - cat build/index.html
   artifacts:
-    baseDirectory: build    # Changed from 'dist' to 'build'
+    baseDirectory: build
     files:
       - '**/*'
   cache:
@@ -29,7 +23,7 @@ frontend:
       headers:
         - key: 'Cache-Control'
           value: 'no-cache'
-    - pattern: '/index.html'  # Add specific header for index.html
+    - pattern: '/index.html'
       headers:
         - key: 'Cache-Control'
           value: 'no-store'

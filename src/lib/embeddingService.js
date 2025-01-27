@@ -1,22 +1,19 @@
 import { supabase } from './supabaseClient'
-import { post } from 'aws-amplify/api'
 
 export async function generateAndStoreEmbedding(content, entityType, entityId) {
   try {
-    const response = await post({
-      apiName: 'ticketProcessor',
-      path: '/process',
-      options: {
-        body: {
-          content,
-          entityType,
-          entityId
-        }
+    const { data, error } = await supabase.functions.invoke('process-embeddings', {
+      body: {
+        content,
+        entityType,
+        entityId
       }
     })
-    return response
+    
+    if (error) throw error
+    return data
   } catch (error) {
-    console.error('Error calling ticket processor:', error)
+    console.error('Error processing embedding:', error)
     throw error
   }
 }
@@ -31,17 +28,6 @@ export async function deleteEntityEmbedding(entityType, entityId) {
       .single()
 
     if (supabaseError) throw supabaseError
-
-    // Delete via API instead of direct Pinecone access
-    await post({
-      apiName: 'ticketProcessor',
-      path: '/delete-embedding',
-      options: {
-        body: {
-          embeddingId: embeddingRecord.id
-        }
-      }
-    })
 
     // Delete from Supabase
     const { error: deleteError } = await supabase
