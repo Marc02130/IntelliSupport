@@ -1,5 +1,4 @@
 import { supabase } from './supabaseClient'
-import { upsertEmbedding, deleteEmbedding } from './pineconeClient'
 import { post } from 'aws-amplify/api'
 
 export async function generateAndStoreEmbedding(content, entityType, entityId) {
@@ -33,8 +32,16 @@ export async function deleteEntityEmbedding(entityType, entityId) {
 
     if (supabaseError) throw supabaseError
 
-    // Delete from Pinecone
-    await deleteEmbedding(embeddingRecord.id)
+    // Delete via API instead of direct Pinecone access
+    await post({
+      apiName: 'ticketProcessor',
+      path: '/delete-embedding',
+      options: {
+        body: {
+          embeddingId: embeddingRecord.id
+        }
+      }
+    })
 
     // Delete from Supabase
     const { error: deleteError } = await supabase
