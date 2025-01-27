@@ -1,20 +1,27 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import OpenAI from 'https://esm.sh/openai@4.24.1'
-import { PineconeClient } from 'https://esm.sh/@pinecone-database/pinecone@1.1.3'
+import { createClient } from "@supabase/supabase-js"
+import { OpenAI } from "openai"
+import { PineconeClient } from "@pinecone-database/pinecone"
 
-// Add environment variable check at start
-console.log('Environment check:', {
-    PINECONE_API_KEY: !!Deno.env.get('PINECONE_API_KEY'),
-    PINECONE_ENVIRONMENT: Deno.env.get('PINECONE_ENVIRONMENT'),
-    PINECONE_INDEX: Deno.env.get('PINECONE_INDEX'),
-    PINECONE_PROJECT_ID: Deno.env.get('PINECONE_PROJECT_ID')
-  })
-  
-// Initialize clients
-const supabase = createClient(
-  Deno.env.get('DB_URL') ?? '',
-  Deno.env.get('SERVICE_ROLE_KEY') ?? ''
-)
+// Add debug logging
+console.log("[Info] Environment check:", {
+  PINECONE_API_KEY: !!Deno.env.get('PINECONE_API_KEY'),
+  PINECONE_ENVIRONMENT: Deno.env.get('PINECONE_ENVIRONMENT'),
+  PINECONE_INDEX: Deno.env.get('PINECONE_INDEX'),
+  PINECONE_PROJECT_ID: Deno.env.get('PINECONE_PROJECT_ID')
+})
+
+// Initialize clients with try-catch
+let supabase;
+try {
+  supabase = createClient(
+    Deno.env.get('DB_URL') ?? '',
+    Deno.env.get('SERVICE_ROLE_KEY') ?? ''
+  )
+  console.log("[Info] Supabase client initialized")
+} catch (err) {
+  console.error("[Error] Failed to initialize Supabase:", err)
+  throw err
+}
 
 // Add version logging
 console.log('OpenAI client version:', OpenAI.version)
@@ -39,47 +46,20 @@ try {
   throw error
 }
 
-const pinecone = new PineconeClient()
-await pinecone.init({
-  apiKey: Deno.env.get('PINECONE_API_KEY') ?? '',
-  environment: Deno.env.get('PINECONE_ENVIRONMENT') ?? '',
-  fetchOptions: {
-    timeout: 10000,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  }
-})
-
-// Test basic fetch to Pinecone
+// Initialize Pinecone with error handling
 try {
-  console.log('Testing Pinecone connection...')
-  const host = Deno.env.get('PINECONE_HOST')
-  console.log('Pinecone host:', host)
-  
-  const response = await fetch(
-    `https://${host}/describe_index_stats`,
-    {
-      method: 'GET',
-      headers: {
-        'Api-Key': Deno.env.get('PINECONE_API_KEY') ?? '',
-        'Accept': 'application/json',
-      }
-    }
-  )
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-  const data = await response.json()
-  console.log('Pinecone connection test response:', data)
-} catch (error) {
-  console.error('Pinecone fetch test error:', {
-    message: error.message,
-    cause: error.cause,
-    status: error.status
+  const pinecone = new PineconeClient()
+  await pinecone.init({
+    apiKey: Deno.env.get('PINECONE_API_KEY') ?? '',
+    environment: Deno.env.get('PINECONE_ENVIRONMENT') ?? ''
   })
-  throw error
+  
+  // Remove the test connection that's causing issues
+  console.log("[Info] Pinecone initialized with host:", Deno.env.get('PINECONE_HOST'))
+  
+} catch (err) {
+  console.error("[Error] Failed to initialize Pinecone:", err)
+  throw err
 }
 
 // Add rate limiting helper
