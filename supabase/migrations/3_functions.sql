@@ -474,13 +474,7 @@ BEGIN
             metadata
         ) VALUES (
             NEW.id,
-            COALESCE(
-                (SELECT string_agg(kd.description || ' ' || ukd.description, ' ')
-                 FROM user_knowledge_domain ukd
-                 JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
-                 WHERE ukd.user_id = NEW.id),
-                ''  -- Default to empty string if no knowledge domains
-            ),
+            NEW.email,  -- Use email for content
             jsonb_build_object(
                 'type', 'user',
                 'id', NEW.id,
@@ -584,17 +578,14 @@ BEGIN
     )
     SELECT 
         u.id,
-        (SELECT string_agg(kd.description || ' ' || ukd.description, ' ')
-         FROM user_knowledge_domain ukd
-         JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
-         WHERE ukd.user_id = u.id),
+        u.email,  -- Changed from knowledge domain string_agg to email
         jsonb_build_object(
             'type', 'user',
             'id', u.id,
             'organization_id', u.organization_id,
             'last_updated', u.updated_at,
-            'knowledge_domains', (
-                SELECT jsonb_agg(jsonb_build_object(
+            'knowledge_domains', COALESCE(
+                (SELECT jsonb_agg(jsonb_build_object(
                     'id', kd.id,
                     'description', kd.description,
                     'is_active', kd.is_active,
@@ -605,7 +596,8 @@ BEGIN
                 ))
                 FROM user_knowledge_domain ukd
                 JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
-                WHERE ukd.user_id = u.id
+                WHERE ukd.user_id = u.id),
+                '[]'::jsonb  -- Default to empty array if no knowledge domains
             )
         )
     FROM users u

@@ -9,6 +9,8 @@ frontend:
     build:
       commands:
         - npm run build
+        - ls -la build  # Add this to verify build output
+        - cat build/index.html  # And this to check the entry point
   artifacts:
     baseDirectory: build    # Changed from 'dist' to 'build'
     files:
@@ -21,6 +23,10 @@ frontend:
       headers:
         - key: 'Cache-Control'
           value: 'no-cache'
+    - pattern: '/index.html'  # Add specific header for index.html
+      headers:
+        - key: 'Cache-Control'
+          value: 'no-store'
   redirects:
     - source: '</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>'
       target: '/index.html'
