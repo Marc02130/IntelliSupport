@@ -1,11 +1,6 @@
-import OpenAI from 'openai'
 import { supabase } from './supabaseClient'
 import { upsertEmbedding, deleteEmbedding } from './pineconeClient'
 import { post } from 'aws-amplify/api'
-
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY
-})
 
 export async function generateAndStoreEmbedding(content, entityType, entityId) {
   try {
