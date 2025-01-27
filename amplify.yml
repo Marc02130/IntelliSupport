@@ -28,10 +28,10 @@ frontend:
         - key: 'Cache-Control'
           value: 'no-store'
   redirects:
-    - source: '/*'  # Simplified pattern
+    - source: '/**'  # Changed from /* to /** to catch all paths
       target: '/index.html'
       status: '200'
   rewrites:
-    - source: '/*'
+    - source: '/**'  # Changed from /* to /** to catch all paths
       target: '/index.html'
       status: '200'
