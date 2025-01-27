@@ -6,7 +6,6 @@ import CommentTemplateSelector from './CommentTemplateSelector'
 import JSONEditor from 'react-json-editor-ajrm/es'
 import locale from 'react-json-editor-ajrm/locale/en'
 import AttachmentsTab from './AttachmentsTab'
-import { generateAndStoreEmbedding } from '../lib/embeddingService'
 
 export default function DataRecord() {
   const { queryId, recordId } = useParams()
@@ -252,15 +251,6 @@ export default function DataRecord() {
         navigate(parentUrl, { replace: true })
       } else {
         navigate(`/list/${queryId}`)
-      }
-
-      // Generate embedding for ticket content
-      if (formData.description) {
-        await generateAndStoreEmbedding(
-          formData.description,
-          'ticket',
-          data[0].id
-        )
       }
     } catch (err) {
       console.error('Save error:', err)
