@@ -1,0 +1,25 @@
+{
+  "name": "route-ticket",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "pretest": "npm run build",
+    "test": "node --loader ts-node/esm test.ts",
+    "test:debug": "node --inspect-brk --loader ts-node/esm test.ts",
+    "build": "tsc",
+    "dev": "supabase start && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.16",
+    "dotenv": "^16.4.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.0.26",
+    "@langchain/core": "^0.1.26",
+    "@langchain/openai": "^0.0.14",
+    "@supabase/supabase-js": "^2.39.0",
+    "zod": "^3.22.4"
+  }
+}

@@ -2,6 +2,12 @@ import { createClient } from "@supabase/supabase-js"
 import { OpenAI } from "openai"
 import { PineconeClient } from "@pinecone-database/pinecone"
 
+// Add startup logging at the very top
+console.log("[STARTUP] Function loading:", {
+  timestamp: new Date().toISOString(),
+  function: 'process-embedding-queue'
+})
+
 // Add debug logging
 console.log("[Info] Environment check:", {
   PINECONE_API_KEY: !!Deno.env.get('PINECONE_API_KEY'),
@@ -162,6 +168,50 @@ function cleanMetadata(metadata: any): any {
   return cleaned
 }
 
+// Add metadata formatting for Pinecone
+function formatPineconeMetadata(metadata: any): any {
+  const formatted: any = {}
+  
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value === null || value === undefined) continue
+
+    if (key === 'knowledge_domains') {
+      // Convert knowledge domains to array of strings
+      formatted[key] = value.map((kd: any) => 
+        `${kd.domain}:${kd.expertise}`
+      )
+    }
+    else if (key === 'comments') {
+      // Convert comments to array of strings
+      formatted[key] = value.map((c: any) => c.content)
+    }
+    else if (key === 'members') {
+      // Extract member knowledge domains
+      formatted.member_domains = value.flatMap((m: any) => 
+        m.knowledge_domains.map((kd: any) => 
+          `${kd.domain}:${kd.expertise}`
+        )
+      )
+      // Extract member IDs
+      formatted.member_ids = value.map((m: any) => m.user_id)
+    }
+    else if (Array.isArray(value)) {
+      // Keep arrays of primitives
+      formatted[key] = value
+    }
+    else if (typeof value === 'object') {
+      // Skip nested objects
+      continue
+    }
+    else {
+      // Keep primitives
+      formatted[key] = value
+    }
+  }
+  
+  return formatted
+}
+
 // Update upsertToPinecone function
 async function upsertToPinecone(vector: {
   id: string;
@@ -170,11 +220,13 @@ async function upsertToPinecone(vector: {
 }) {
   try {
     const host = Deno.env.get('PINECONE_HOST')
+    const formattedMetadata = formatPineconeMetadata(vector.metadata)
+    
     const body = {
       vectors: [{
         id: vector.id,
         values: vector.values,
-        metadata: cleanMetadata(vector.metadata)  // Clean metadata
+        metadata: formattedMetadata
       }]
     }
     
@@ -182,7 +234,7 @@ async function upsertToPinecone(vector: {
       url: `https://${host}/vectors/upsert`,
       vectorId: vector.id,
       valuesLength: vector.values.length,
-      metadata: body.vectors[0].metadata  // Log cleaned metadata
+      metadata: formattedMetadata
     })
 
     const response = await fetch(
@@ -212,8 +264,14 @@ async function upsertToPinecone(vector: {
   }
 }
 
-// Serve function
+// Add request logging
 Deno.serve(async (req) => {
+  console.log("[REQUEST] Received request:", {
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    url: req.url
+  })
+  
   try {
     console.log('Function started')
     
@@ -237,12 +295,17 @@ Deno.serve(async (req) => {
         // Generate embedding with retry using env model
         const embedding = await withRetry(async () => {
           await sleep(200)
-          return await openai.embeddings.create({
+          console.log('Generating embedding for content:', item.content.substring(0, 100) + '...')
+          const result = await openai.embeddings.create({
             model: Deno.env.get('OPENAI_EMBEDDING_MODEL') ?? 'text-embedding-ada-002',
             input: item.content
           })
+          console.log('Embedding generated successfully:', {
+            model: Deno.env.get('OPENAI_EMBEDDING_MODEL'),
+            dimensions: result.data[0].embedding.length
+          })
+          return result
         })
-        console.log('Generated embedding with model:', Deno.env.get('OPENAI_EMBEDDING_MODEL'))
 
         // Store in Pinecone
         await upsertToPinecone({
@@ -252,18 +315,18 @@ Deno.serve(async (req) => {
         })
         console.log('Stored in Pinecone')
 
-        // Store in Supabase and remove from queue
-        await supabase.from('embeddings').insert({
-          content: item.content,
-          embedding: embedding.data[0].embedding,
-          entity_type: item.metadata.type,
-          entity_id: item.entity_id,
-          metadata: item.metadata
+        // Store in Supabase and remove from queue in a single transaction
+        const { error: dbError } = await supabase.rpc('process_embedding', {
+          p_content: item.content,
+          p_embedding: embedding.data[0].embedding,
+          p_entity_type: item.metadata.type,
+          p_entity_id: item.entity_id,
+          p_metadata: item.metadata,
+          p_queue_id: item.id
         })
-        console.log('Stored in Supabase')
-
-        await supabase.from('embedding_queue').delete().match({ id: item.id })
-        console.log('Removed from queue')
+        
+        if (dbError) throw dbError
+        console.log('Processed in database')
 
       } catch (error) {
         console.error('Error processing item:', {

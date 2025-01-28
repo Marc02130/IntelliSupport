@@ -243,57 +243,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add audit triggers to all tables
-CREATE TRIGGER set_organizations_audit
-    BEFORE INSERT OR UPDATE ON organizations
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_tickets_audit
-    BEFORE INSERT OR UPDATE ON tickets
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_ticket_comments_audit
-    BEFORE INSERT OR UPDATE ON ticket_comments
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_ticket_tags_audit
-    BEFORE INSERT OR UPDATE ON ticket_tags
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_teams_audit
-    BEFORE INSERT OR UPDATE ON teams
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_team_members_audit
-    BEFORE INSERT OR UPDATE ON team_members
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_team_tags_audit
-    BEFORE INSERT OR UPDATE ON team_tags
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_team_schedules_audit
-    BEFORE INSERT OR UPDATE ON team_schedules
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_search_queries_audit
-    BEFORE INSERT OR UPDATE ON search_queries
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
-CREATE TRIGGER set_sidebar_navigation_audit
-    BEFORE INSERT OR UPDATE ON sidebar_navigation
-    FOR EACH ROW
-    EXECUTE FUNCTION public.set_audit_fields();
-
 -- Add audit logging function
 CREATE OR REPLACE FUNCTION public.process_audit_log()
 RETURNS TRIGGER AS $$
@@ -354,34 +303,119 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add audit triggers for important tables (excluding users)
+-- Add audit triggers for all tables
+CREATE TRIGGER set_organizations_audit
+    BEFORE INSERT OR UPDATE ON organizations
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_tickets_audit
+    BEFORE INSERT OR UPDATE ON tickets
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_ticket_comments_audit
+    BEFORE INSERT OR UPDATE ON ticket_comments
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_ticket_tags_audit
+    BEFORE INSERT OR UPDATE ON ticket_tags
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_teams_audit
+    BEFORE INSERT OR UPDATE ON teams
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_team_members_audit
+    BEFORE INSERT OR UPDATE ON team_members
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_team_tags_audit
+    BEFORE INSERT OR UPDATE ON team_tags
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_team_schedules_audit
+    BEFORE INSERT OR UPDATE ON team_schedules
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_search_queries_audit
+    BEFORE INSERT OR UPDATE ON search_queries
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_sidebar_navigation_audit
+    BEFORE INSERT OR UPDATE ON sidebar_navigation
+    FOR EACH ROW
+    EXECUTE FUNCTION public.set_audit_fields();
+
+CREATE TRIGGER set_roles_audit
+    AFTER INSERT OR UPDATE OR DELETE ON roles
+    FOR EACH ROW EXECUTE FUNCTION set_audit_fields();
+
+CREATE TRIGGER set_permissions_audit
+    AFTER INSERT OR UPDATE OR DELETE ON permissions
+    FOR EACH ROW EXECUTE FUNCTION set_audit_fields();
+
+CREATE TRIGGER set_role_permissions_audit
+    AFTER INSERT OR UPDATE OR DELETE ON role_permissions
+    FOR EACH ROW EXECUTE FUNCTION set_audit_fields();
+
+-- Add audit log triggers for all tables
+CREATE TRIGGER audit_organizations
+    AFTER INSERT OR UPDATE OR DELETE ON organizations
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
+
 CREATE TRIGGER audit_tickets
     AFTER INSERT OR UPDATE OR DELETE ON tickets
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
 CREATE TRIGGER audit_ticket_comments
     AFTER INSERT OR UPDATE OR DELETE ON ticket_comments
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
-CREATE TRIGGER audit_tags
-    AFTER INSERT OR UPDATE OR DELETE ON tags
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+CREATE TRIGGER audit_ticket_tags
+    AFTER INSERT OR UPDATE OR DELETE ON ticket_tags
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
 CREATE TRIGGER audit_teams
     AFTER INSERT OR UPDATE OR DELETE ON teams
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
 CREATE TRIGGER audit_team_members
     AFTER INSERT OR UPDATE OR DELETE ON team_members
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
+
+CREATE TRIGGER audit_team_tags
+    AFTER INSERT OR UPDATE OR DELETE ON team_tags
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
+
+CREATE TRIGGER audit_team_schedules
+    AFTER INSERT OR UPDATE OR DELETE ON team_schedules
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
 CREATE TRIGGER audit_search_queries
     AFTER INSERT OR UPDATE OR DELETE ON search_queries
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
 CREATE TRIGGER audit_sidebar_navigation
     AFTER INSERT OR UPDATE OR DELETE ON sidebar_navigation
-    FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+    FOR EACH ROW 
+    EXECUTE FUNCTION process_audit_log();
 
 CREATE TRIGGER audit_roles
     AFTER INSERT OR UPDATE OR DELETE ON roles
@@ -422,355 +456,599 @@ CREATE TRIGGER check_attachment_entity
     FOR EACH ROW
     EXECUTE FUNCTION validate_attachment_entity();
 
--- Function to queue team/user content for embedding
-CREATE OR REPLACE FUNCTION queue_resource_for_embedding()
+-- Drop all existing triggers first
+DROP TRIGGER IF EXISTS queue_ticket_embedding ON tickets;
+DROP TRIGGER IF EXISTS queue_ticket_tag_changes ON ticket_tags;
+DROP TRIGGER IF EXISTS queue_team_embedding ON teams;
+DROP TRIGGER IF EXISTS queue_user_embedding ON users;
+DROP TRIGGER IF EXISTS team_member_change ON team_members;
+DROP TRIGGER IF EXISTS team_tag_change ON team_tags;
+DROP TRIGGER IF EXISTS team_schedule_change ON team_schedules;
+DROP TRIGGER IF EXISTS user_knowledge_change ON user_knowledge_domain;
+DROP TRIGGER IF EXISTS ticket_change ON tickets;
+DROP TRIGGER IF EXISTS ticket_tag_change ON ticket_tags;
+DROP TRIGGER IF EXISTS ticket_comment_change ON ticket_comments;
+DROP TRIGGER IF EXISTS auth_user_change ON auth.users;
+
+-- Drop all existing functions
+DROP FUNCTION IF EXISTS queue_ticket_for_embedding();
+DROP FUNCTION IF EXISTS queue_ticket_on_tag_change();
+DROP FUNCTION IF EXISTS queue_resource_for_embedding();
+DROP FUNCTION IF EXISTS queue_team_update_on_member_change();
+DROP FUNCTION IF EXISTS queue_user_update_on_knowledge_change();
+DROP FUNCTION IF EXISTS handle_team_member_change();
+DROP FUNCTION IF EXISTS handle_team_tag_change();
+DROP FUNCTION IF EXISTS handle_user_knowledge_change();
+DROP FUNCTION IF EXISTS handle_team_change();
+DROP FUNCTION IF EXISTS handle_user_change();
+DROP FUNCTION IF EXISTS handle_ticket_change();
+
+-- Function to handle team changes
+CREATE OR REPLACE FUNCTION handle_team_change()
 RETURNS TRIGGER AS $$
+DECLARE
+  team_id uuid;
 BEGIN
-    -- Handle teams
-    IF TG_TABLE_NAME = 'teams' THEN
-        INSERT INTO embedding_queue (
-            entity_id,
-            content,
-            metadata
-        ) VALUES (
-            NEW.id,
-            NEW.name || ' ' || COALESCE(NEW.description, ''),
+  -- Get the team_id based on the trigger source
+  IF TG_TABLE_NAME = 'teams' THEN
+    team_id := NEW.id;
+  ELSIF TG_TABLE_NAME = 'team_members' THEN
+    team_id := NEW.team_id;
+  ELSIF TG_TABLE_NAME = 'team_tags' THEN
+    team_id := NEW.team_id;
+  ELSIF TG_TABLE_NAME = 'team_schedules' THEN
+    team_id := NEW.team_id;
+  END IF;
+
+  -- Delete existing embedding for this team
+  DELETE FROM embeddings WHERE entity_id = team_id;
+  DELETE FROM embedding_queue WHERE entity_id = team_id;
+
+  -- Only queue team if it still exists and meets requirements
+  IF TG_OP != 'DELETE' OR TG_TABLE_NAME != 'teams' THEN
+    INSERT INTO embedding_queue (entity_id, content, metadata)
+    SELECT DISTINCT ON (t.id)
+      t.id,
+      t.name || ' ' || COALESCE(t.description, ''),
+      jsonb_build_object(
+        'id', t.id,
+        'name', t.name,
+        'type', 'team',
+        'tags', (
+          SELECT array_agg(tags.name)
+          FROM team_tags tt
+          JOIN tags ON tags.id = tt.tag_id
+          WHERE tt.team_id = t.id
+        ),
+        'members', (
+          SELECT jsonb_agg(
             jsonb_build_object(
-                'type', 'team',
-                'id', NEW.id,
-                'organization_id', NEW.organization_id,
-                'name', NEW.name,
-                'is_active', NEW.is_active,
-                'last_updated', NEW.updated_at,
-                'tags', (SELECT array_agg(t.name) FROM team_tags tt JOIN tags t ON t.id = tt.tag_id WHERE tt.team_id = NEW.id),
-                'members', (
-                    SELECT jsonb_agg(jsonb_build_object(
-                        'user_id', tm.user_id,
-                        'role', tm.role,
-                        'is_active', tm.is_active,
-                        'last_updated', tm.updated_at
-                    ))
-                    FROM team_members tm
-                    WHERE tm.team_id = NEW.id
-                ),
-                'schedule', (
-                    SELECT jsonb_agg(jsonb_build_object(
-                        'user_id', ts.user_id,
-                        'start_time', ts.start_time,
-                        'end_time', ts.end_time,
-                        'is_active', true,
-                        'last_updated', ts.updated_at
-                    ))
-                    FROM team_schedules ts
-                    WHERE ts.team_id = NEW.id
+              'user_id', tm.user_id,
+              'role', tm.role,
+              'schedule', (
+                SELECT jsonb_build_object(
+                  'start_time', ts.start_time,
+                  'end_time', ts.end_time
                 )
-            )
-        );
-    -- Handle users
-    ELSIF TG_TABLE_NAME = 'users' THEN
-        INSERT INTO embedding_queue (
-            entity_id,
-            content,
-            metadata
-        ) VALUES (
-            NEW.id,
-            NEW.email,  -- Use email for content
-            jsonb_build_object(
-                'type', 'user',
-                'id', NEW.id,
-                'organization_id', NEW.organization_id,
-                'last_updated', NEW.updated_at,
-                'knowledge_domains', COALESCE(
-                    (SELECT jsonb_agg(jsonb_build_object(
-                        'id', kd.id,
-                        'description', kd.description,
-                        'is_active', kd.is_active,
-                        'last_updated', kd.updated_at,
-                        'years_experience', ukd.years_experience,
-                        'expertise', ukd.expertise,
-                        'credentials', ukd.credential
-                    ))
-                    FROM user_knowledge_domain ukd
-                    JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
-                    WHERE ukd.user_id = NEW.id),
-                    '[]'::jsonb  -- Default to empty array if no knowledge domains
-                )
-            )
-        );
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create triggers for teams and users
-CREATE TRIGGER queue_team_embedding
-    AFTER INSERT OR UPDATE OF name, description, is_active
-    ON teams
-    FOR EACH ROW
-    EXECUTE FUNCTION queue_resource_for_embedding();
-
-CREATE TRIGGER queue_user_embedding
-    AFTER INSERT OR UPDATE OF is_active
-    ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION queue_resource_for_embedding();
-
--- Function to update team embedding when members change
-CREATE OR REPLACE FUNCTION queue_team_update_on_member_change()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Queue the team for re-embedding when members change
-    INSERT INTO embedding_queue (
-        entity_id,
-        content,
-        metadata
-    )
-    SELECT 
-        t.id,
-        t.name || ' ' || COALESCE(t.description, ''),
-        jsonb_build_object(
-            'type', 'team',
-            'id', t.id,
-            'organization_id', t.organization_id,
-            'name', t.name,
-            'is_active', t.is_active,
-            'last_updated', t.updated_at,
-            'tags', (SELECT array_agg(tags.name) FROM team_tags tt JOIN tags ON tags.id = tt.tag_id WHERE tt.team_id = t.id),
-            'members', (
-                SELECT jsonb_agg(jsonb_build_object(
-                    'user_id', tm.user_id,
-                    'role', tm.role,
-                    'is_active', tm.is_active,
-                    'last_updated', tm.updated_at
-                ))
-                FROM team_members tm
-                WHERE tm.team_id = t.id
-            ),
-            'schedule', (
-                SELECT jsonb_agg(jsonb_build_object(
-                    'user_id', ts.user_id,
-                    'start_time', ts.start_time,
-                    'end_time', ts.end_time,
-                    'is_active', true,
-                    'last_updated', ts.updated_at
-                ))
                 FROM team_schedules ts
-                WHERE ts.team_id = t.id
-            )
-        )
-    FROM teams t
-    WHERE t.id = NEW.team_id;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to update user embedding when knowledge domains change
-CREATE OR REPLACE FUNCTION queue_user_update_on_knowledge_change()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Queue the user for re-embedding when knowledge domains change
-    INSERT INTO embedding_queue (
-        entity_id,
-        content,
-        metadata
-    )
-    SELECT 
-        u.id,
-        u.email,  -- Changed from knowledge domain string_agg to email
-        jsonb_build_object(
-            'type', 'user',
-            'id', u.id,
-            'organization_id', u.organization_id,
-            'last_updated', u.updated_at,
-            'knowledge_domains', COALESCE(
-                (SELECT jsonb_agg(jsonb_build_object(
-                    'id', kd.id,
-                    'description', kd.description,
-                    'is_active', kd.is_active,
-                    'last_updated', kd.updated_at,
-                    'years_experience', ukd.years_experience,
-                    'expertise', ukd.expertise,
-                    'credentials', ukd.credential
-                ))
+                WHERE ts.team_id = t.id 
+                AND ts.user_id = tm.user_id
+              ),
+              'knowledge_domains', (
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'domain', kd.name,
+                    'expertise', ukd.expertise
+                  )
+                )
                 FROM user_knowledge_domain ukd
                 JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
-                WHERE ukd.user_id = u.id),
-                '[]'::jsonb  -- Default to empty array if no knowledge domains
+                WHERE ukd.user_id = tm.user_id
+              )
             )
-        )
-    FROM users u
-    WHERE u.id = NEW.user_id;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to queue ticket content for embedding
-CREATE OR REPLACE FUNCTION queue_ticket_for_embedding()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO embedding_queue (
-        entity_id,
-        content,
-        metadata
-    ) VALUES (
-        NEW.id,
-        NEW.subject || ' ' || COALESCE(NEW.description, ''),
-        jsonb_build_object(
-            'type', 'ticket',
-            'id', NEW.id,
-            'organization_id', NEW.organization_id,
-            'last_updated', NEW.updated_at,
-            'status', NEW.status,
-            'assigned_to', NEW.assignee_id,
-            'requested_by', NEW.requester_id,
-            'team_id', NEW.team_id,
-            'tags', (SELECT array_agg(t.name) FROM ticket_tags tt JOIN tags t ON t.id = tt.tag_id WHERE tt.ticket_id = NEW.id),
-            'priority', NEW.priority,
-            'subject', NEW.subject,
-            'description', NEW.description
-        )
-    );
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger for tickets
-CREATE TRIGGER queue_ticket_embedding
-    AFTER INSERT OR UPDATE OF subject, description, status, assignee_id, team_id, priority
-    ON tickets
-    FOR EACH ROW
-    EXECUTE FUNCTION queue_ticket_for_embedding();
-
--- Function to handle ticket tag changes
-CREATE OR REPLACE FUNCTION queue_ticket_on_tag_change()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Queue the associated ticket for re-embedding when tags change
-    INSERT INTO embedding_queue (
-        entity_id,
-        content,
-        metadata
-    )
-    SELECT 
-        t.id,
-        t.subject || ' ' || COALESCE(t.description, ''),
-        jsonb_build_object(
-            'type', 'ticket',
-            'id', t.id,
-            'organization_id', t.organization_id,
-            'last_updated', t.updated_at,
-            'status', t.status,
-            'assigned_to', t.assignee_id,
-            'requested_by', t.requester_id,
-            'team_id', t.team_id,
-            'tags', (SELECT array_agg(tags.name) FROM ticket_tags tt JOIN tags ON tags.id = tt.tag_id WHERE tt.ticket_id = t.id),
-            'priority', t.priority,
-            'subject', t.subject,
-            'description', t.description
-        )
-    FROM tickets t
-    WHERE t.id = CASE 
-        WHEN TG_OP = 'DELETE' THEN OLD.ticket_id
-        ELSE NEW.ticket_id
-    END;
-    
-    RETURN COALESCE(NEW, OLD);
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger for ticket tag changes
-CREATE TRIGGER queue_ticket_tag_changes
-    AFTER INSERT OR UPDATE OR DELETE
-    ON ticket_tags
-    FOR EACH ROW
-    EXECUTE FUNCTION queue_ticket_on_tag_change();
-
--- Function to clean up embeddings when team members change
-CREATE OR REPLACE FUNCTION cleanup_team_member_embeddings()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Queue the team for re-embedding when members are removed
-    INSERT INTO embedding_queue (
-        entity_id,
-        content,
-        metadata
-    )
-    SELECT 
-        t.id,
-        t.name || ' ' || COALESCE(t.description, ''),
-        jsonb_build_object(
-            'type', 'team',
-            'id', t.id,
-            'organization_id', t.organization_id,
-            'name', t.name,
-            'is_active', t.is_active,
-            'last_updated', t.updated_at,
-            'tags', (SELECT array_agg(tags.name) FROM team_tags tt JOIN tags ON tags.id = tt.tag_id WHERE tt.team_id = t.id),
-            'members', (
-                SELECT jsonb_agg(jsonb_build_object(
-                    'user_id', tm.user_id,
-                    'role', tm.role,
-                    'is_active', tm.is_active,
-                    'last_updated', tm.updated_at
-                ))
-                FROM team_members tm
-                WHERE tm.team_id = t.id
-            ),
-            'schedule', (
-                SELECT jsonb_agg(jsonb_build_object(
-                    'user_id', ts.user_id,
-                    'start_time', ts.start_time,
-                    'end_time', ts.end_time,
-                    'is_active', true,
-                    'last_updated', ts.updated_at
-                ))
-                FROM team_schedules ts
-                WHERE ts.team_id = t.id
-            )
-        )
+          )
+          FROM team_members tm
+          WHERE tm.team_id = t.id
+          AND tm.is_active = true
+          AND EXISTS (
+            SELECT 1 
+            FROM user_knowledge_domain ukd
+            WHERE ukd.user_id = tm.user_id
+          )
+        ),
+        'is_active', t.is_active,
+        'organization_id', t.organization_id,
+        'last_updated', CURRENT_TIMESTAMP
+      )
     FROM teams t
-    WHERE t.id = OLD.team_id;
-    
-    RETURN OLD;
+    WHERE t.id = team_id
+    -- Team must have tags
+    AND EXISTS (
+      SELECT 1 FROM team_tags tt WHERE tt.team_id = t.id
+    )
+    -- Team must have members with knowledge domains
+    AND EXISTS (
+      SELECT 1 
+      FROM team_members tm
+      JOIN user_knowledge_domain ukd ON ukd.user_id = tm.user_id
+      WHERE tm.team_id = t.id
+      AND tm.is_active = true
+    )
+    -- Team must have schedule
+    AND EXISTS (
+      SELECT 1 FROM team_schedules ts WHERE ts.team_id = t.id
+    );
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for team member changes
-CREATE TRIGGER queue_team_member_deletion
-    AFTER DELETE ON team_members
-    FOR EACH ROW
-    EXECUTE FUNCTION cleanup_team_member_embeddings();
-
--- Similar triggers for team_schedules and team_tags
-CREATE TRIGGER queue_team_schedule_deletion
-    AFTER DELETE ON team_schedules
-    FOR EACH ROW
-    EXECUTE FUNCTION cleanup_team_member_embeddings();
-
-CREATE TRIGGER queue_team_tag_deletion
-    AFTER DELETE ON team_tags
-    FOR EACH ROW
-    EXECUTE FUNCTION cleanup_team_member_embeddings();
-
--- Create a function to process the queue
-CREATE OR REPLACE FUNCTION process_embedding_queue() 
-RETURNS void AS $$
+-- Function to handle public.users changes
+CREATE OR REPLACE FUNCTION handle_user_change()
+RETURNS TRIGGER AS $$
 BEGIN
-  PERFORM net.http_post(
-    url:='https://ntlxuoqhpzckyvzpmicn.supabase.co/functions/v1/process-embedding-queue',
-    headers:=jsonb_build_object(
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+  -- Delete existing embedding for this user
+  DELETE FROM embeddings WHERE entity_id = NEW.id;
+  DELETE FROM embedding_queue WHERE entity_id = NEW.id;
+
+  -- Queue new embedding if user has knowledge domains
+  INSERT INTO embedding_queue (entity_id, content, metadata)
+  SELECT 
+    u.id,
+    u.full_name,
+    jsonb_build_object(
+      'id', u.id,
+      'type', 'user',
+      'name', u.full_name,
+      'knowledge_domains', (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'domain', kd.name,
+            'expertise', ukd.expertise
+          )
+        )
+        FROM user_knowledge_domain ukd
+        JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
+        WHERE ukd.user_id = u.id
+      ),
+      'organization_id', u.organization_id,
+      'last_updated', CURRENT_TIMESTAMP
     )
+  FROM users u
+  WHERE u.id = NEW.id
+  -- Only process users that have knowledge domains
+  AND EXISTS (
+    SELECT 1 
+    FROM user_knowledge_domain ukd
+    WHERE ukd.user_id = u.id
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to handle user_knowledge_domain changes
+CREATE OR REPLACE FUNCTION handle_knowledge_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  user_id uuid;
+BEGIN
+  -- Get the user_id based on operation
+  user_id := CASE 
+    WHEN TG_OP = 'DELETE' THEN OLD.user_id
+    ELSE NEW.user_id
+  END;
+
+  -- Delete existing embeddings
+  DELETE FROM embeddings WHERE entity_id = user_id;
+  DELETE FROM embedding_queue WHERE entity_id = user_id;
+
+  -- Queue new embedding if not deleted and user has knowledge domains
+  IF TG_OP != 'DELETE' THEN
+    INSERT INTO embedding_queue (entity_id, content, metadata)
+    SELECT 
+      u.id,
+      u.full_name || ' - ' || COALESCE(
+        (SELECT string_agg(
+          kd.name || ' (' || ukd.expertise || ')',
+          ', '
+        )
+        FROM user_knowledge_domain ukd
+        JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
+        WHERE ukd.user_id = u.id),
+      ''),
+      jsonb_build_object(
+        'id', u.id,
+        'type', 'user',
+        'name', u.full_name,
+        'knowledge_domains', (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'domain', kd.name,
+              'expertise', ukd.expertise
+            )
+          )
+          FROM user_knowledge_domain ukd
+          JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
+          WHERE ukd.user_id = u.id
+        ),
+        'organization_id', u.organization_id,
+        'last_updated', CURRENT_TIMESTAMP
+      )
+    FROM users u
+    WHERE u.id = user_id
+    -- Only process users that have knowledge domains
+    AND EXISTS (
+      SELECT 1 
+      FROM user_knowledge_domain ukd
+      WHERE ukd.user_id = u.id
+    );
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to handle tickets changes
+CREATE OR REPLACE FUNCTION handle_ticket_change() 
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Delete existing embedding
+  DELETE FROM embeddings WHERE entity_id = NEW.id;
+  DELETE FROM embedding_queue WHERE entity_id = NEW.id;
+
+  -- Queue new embedding if ticket has tags
+  INSERT INTO embedding_queue (entity_id, content, metadata)
+  SELECT 
+    t.id,
+    t.subject || ' ' || COALESCE(t.description, ''),
+    jsonb_build_object(
+      'id', t.id,
+      'type', 'ticket',
+      'subject', t.subject,
+      'description', t.description,
+      'status', t.status,
+      'priority', t.priority,
+      'tags', (
+        SELECT array_agg(tags.name)
+        FROM ticket_tags tt
+        JOIN tags ON tags.id = tt.tag_id
+        WHERE tt.ticket_id = t.id
+      ),
+      'team_id', t.team_id,
+      'assigned_to', t.assignee_id,
+      'requested_by', t.requester_id,
+      'organization_id', t.organization_id,
+      'comments', (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'content', c.content,
+            'author_id', c.author_id,
+            'created_at', c.created_at
+          ) ORDER BY c.created_at DESC
+        )
+        FROM ticket_comments c
+        WHERE c.ticket_id = t.id
+      ),
+      'last_updated', CURRENT_TIMESTAMP
+    )
+  FROM tickets t
+  WHERE t.id = NEW.id
+  -- Ticket must have tags
+  AND EXISTS (
+    SELECT 1 FROM ticket_tags WHERE ticket_id = t.id
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to handle ticket tags changes
+CREATE OR REPLACE FUNCTION handle_ticket_tag_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Delete existing embedding
+  DELETE FROM embeddings WHERE entity_id = CASE 
+    WHEN TG_OP = 'DELETE' THEN OLD.ticket_id
+    ELSE NEW.ticket_id
+  END;
+
+  -- Queue new embedding if not deleted and has tags
+  IF TG_OP != 'DELETE' THEN
+    INSERT INTO embedding_queue (entity_id, content, metadata)
+    SELECT 
+      t.id,
+      t.subject || ' ' || COALESCE(t.description, ''),
+      jsonb_build_object(
+        'id', t.id,
+        'type', 'ticket',
+        'subject', t.subject,
+        'description', t.description,
+        'status', t.status,
+        'priority', t.priority,
+        'tags', (
+          SELECT array_agg(tags.name)
+          FROM ticket_tags tt
+          JOIN tags ON tags.id = tt.tag_id
+          WHERE tt.ticket_id = t.id
+        ),
+        'team_id', t.team_id,
+        'assigned_to', t.assignee_id,
+        'requested_by', t.requester_id,
+        'organization_id', t.organization_id,
+        'comments', (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'content', c.content,
+              'author_id', c.author_id,
+              'created_at', c.created_at
+            ) ORDER BY c.created_at DESC
+          )
+          FROM ticket_comments c
+          WHERE c.ticket_id = t.id
+        ),
+        'last_updated', CURRENT_TIMESTAMP
+      )
+    FROM tickets t
+    WHERE t.id = NEW.ticket_id
+    -- Ticket must have tags
+    AND EXISTS (
+      SELECT 1 FROM ticket_tags WHERE ticket_id = t.id
+    );
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to handle ticket comments changes
+CREATE OR REPLACE FUNCTION handle_ticket_comment_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Delete existing embedding and queue entries
+  DELETE FROM embeddings WHERE entity_id = NEW.ticket_id;
+  DELETE FROM embedding_queue WHERE entity_id = NEW.ticket_id;
+
+  -- Queue new embedding if ticket has tags
+  INSERT INTO embedding_queue (entity_id, content, metadata)
+  SELECT 
+    t.id,
+    t.subject || ' ' || COALESCE(t.description, '') || ' ' || COALESCE(
+      (SELECT string_agg(content, ' ')
+       FROM (
+         SELECT c.content 
+         FROM ticket_comments c
+         WHERE c.ticket_id = t.id
+         ORDER BY c.created_at DESC
+       ) ordered_comments),
+    ''),
+    jsonb_build_object(
+      'id', t.id,
+      'type', 'ticket',
+      'subject', t.subject,
+      'description', t.description,
+      'status', t.status,
+      'priority', t.priority,
+      'tags', (
+        SELECT array_agg(tags.name)
+        FROM ticket_tags tt
+        JOIN tags ON tags.id = tt.tag_id
+        WHERE tt.ticket_id = t.id
+      ),
+      'team_id', t.team_id,
+      'assigned_to', t.assignee_id,
+      'requested_by', t.requester_id,
+      'organization_id', t.organization_id,
+      'comments', (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'content', c.content,
+            'author_id', c.author_id,
+            'created_at', c.created_at
+          ) ORDER BY c.created_at DESC
+        )
+        FROM ticket_comments c
+        WHERE c.ticket_id = t.id
+      ),
+      'last_updated', CURRENT_TIMESTAMP
+    )
+  FROM tickets t
+  WHERE t.id = NEW.ticket_id
+  -- Ticket must have tags
+  AND EXISTS (
+    SELECT 1 FROM ticket_tags WHERE ticket_id = t.id
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers
+CREATE TRIGGER ticket_change
+  AFTER INSERT OR UPDATE ON tickets
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_ticket_change();
+
+CREATE TRIGGER ticket_tag_change
+  AFTER INSERT OR UPDATE OR DELETE ON ticket_tags
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_ticket_tag_change();
+
+CREATE TRIGGER ticket_comment_change
+  AFTER INSERT OR UPDATE ON ticket_comments
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_ticket_comment_change();
+
+-- Create triggers for teams
+CREATE TRIGGER teams_change
+  AFTER INSERT OR UPDATE ON teams
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_team_change();
+
+CREATE TRIGGER team_members_change
+  AFTER INSERT OR UPDATE OR DELETE ON team_members
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_team_change();
+
+CREATE TRIGGER team_tag_change
+  AFTER INSERT OR UPDATE OR DELETE ON team_tags
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_team_change();
+
+CREATE TRIGGER team_schedule_change
+  AFTER INSERT OR UPDATE OR DELETE ON team_schedules
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_team_change();
+
+-- Create triggers for users
+CREATE TRIGGER user_change
+  AFTER INSERT OR UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_user_change();
+
+CREATE TRIGGER knowledge_change
+  AFTER INSERT OR UPDATE OR DELETE ON user_knowledge_domain
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_knowledge_change();
+
+-- Function to process embeddings in a transaction
+CREATE OR REPLACE FUNCTION process_embedding(
+  p_content text,
+  p_embedding vector(3072),
+  p_entity_type text,
+  p_entity_id uuid,
+  p_metadata jsonb,
+  p_queue_id uuid
+) RETURNS void AS $$
+BEGIN
+  -- Insert into embeddings
+  INSERT INTO embeddings (
+    content,
+    embedding,
+    entity_type,
+    entity_id,
+    metadata
+  ) VALUES (
+    p_content,
+    p_embedding,
+    p_entity_type,
+    p_entity_id,
+    p_metadata
+  );
+
+  -- Delete from queue
+  DELETE FROM embedding_queue WHERE id = p_queue_id;
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create the match_documents function
+create or replace function match_documents (
+  query_embedding vector(3072),
+  match_count int,
+  filter jsonb default '{}'
+) returns table (
+  id uuid,
+  content text,
+  metadata jsonb,
+  embedding vector(3072),
+  similarity float
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    embeddings.id,
+    embeddings.content,
+    embeddings.metadata,
+    embeddings.embedding,
+    1 - (embeddings.embedding <=> query_embedding) as similarity
+  from embeddings
+  where embeddings.metadata @> filter
+  order by embeddings.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+-- Function to clean up test data
+CREATE OR REPLACE FUNCTION cleanup_test_data(test_org_id text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Delete test embeddings
+  DELETE FROM embeddings 
+  WHERE metadata->>'organization_id' = test_org_id;
+
+  -- Delete test teams
+  DELETE FROM teams
+  WHERE id IN (
+    SELECT entity_id::uuid
+    FROM embeddings
+    WHERE metadata->>'organization_id' = test_org_id
+    AND entity_type = 'team'
   );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
--- Schedule the queue processor
+-- Function to process embedding queue
+CREATE OR REPLACE FUNCTION process_embedding_queue_job()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Call edge function to process embedding queue
+  PERFORM
+    net.http_post(
+      url := current_setting('app.settings.service_url') || '/functions/v1/process-embedding-queue',
+      headers := jsonb_build_object(
+        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
+        'Content-Type', 'application/json'
+      ),
+      body := '{}'
+    );
+END;
+$$;
+
+-- Function to route unassigned tickets
+CREATE OR REPLACE FUNCTION route_tickets_job()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Call edge function to route tickets
+  PERFORM
+    net.http_post(
+      url := current_setting('app.settings.service_url') || '/functions/v1/route-tickets-job',
+      headers := jsonb_build_object(
+        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'),
+        'Content-Type', 'application/json'
+      ),
+      body := '{}'
+    );
+END;
+$$;
+
+-- Schedule the jobs
 SELECT cron.schedule(
-    'process-embedding-queue-every-15m',
-    '*/15 * * * *',
-    'SELECT process_embedding_queue();'
+  'process-embedding-queue',  -- job name
+  '*/5 * * * *',           -- every 5 minutes
+  'SELECT process_embedding_queue_job();'
 );
+
+SELECT cron.schedule(
+  'route-tickets',           -- job name
+  '*/5 * * * *',           -- every 5 minutes
+  'SELECT route_tickets_job();'
+);
+
+-- Unschedule if exists (useful for migrations)
+SELECT cron.unschedule('process-embedding-queue');
+SELECT cron.unschedule('route-tickets');

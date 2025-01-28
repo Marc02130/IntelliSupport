@@ -162,9 +162,10 @@ CREATE TABLE public.role_permissions (
     role_id UUID REFERENCES public.roles(id) ON DELETE CASCADE,
     permission_id UUID REFERENCES public.permissions(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(role_id, permission_id),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by UUID REFERENCES auth.users(id),
-    updated_by UUID REFERENCES auth.users(id)
+    updated_by UUID REFERENCES auth.users(id),
+    UNIQUE(role_id, permission_id)
 );
 
 -- Junction table for team and tags
@@ -316,7 +317,7 @@ CREATE TABLE public.ticket_routing_history (
 -- When content changes, it's added to embedding_queue
 CREATE TABLE embedding_queue (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  entity_id TEXT NOT NULL,
+  entity_id UUID NOT NULL,
   content TEXT NOT NULL,
   embedding VECTOR(3072), -- optional, might be NULL
   metadata JSONB NOT NULL,
@@ -326,12 +327,11 @@ CREATE TABLE embedding_queue (
 -- We need to create the embeddings table
 CREATE TABLE IF NOT EXISTS embeddings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  content TEXT NOT NULL,
-  embedding vector(3072),
-  entity_type TEXT NOT NULL,
   entity_id UUID NOT NULL,
+  entity_type TEXT NOT NULL,
+  content TEXT,
   metadata JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  embedding vector(3072)
 );
 
 COMMENT ON COLUMN search_queries.relationship_type IS 'Type of relationship (one_to_many or many_to_many)';
@@ -345,7 +345,6 @@ CREATE INDEX IF NOT EXISTS idx_comment_templates_is_active ON comment_templates(
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_entity_type ON embeddings(entity_type);
 CREATE INDEX IF NOT EXISTS idx_embeddings_entity_id ON embeddings(entity_id);
-CREATE INDEX IF NOT EXISTS idx_embeddings_created_at ON embeddings(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_tickets_requester ON tickets(requester_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee_id);

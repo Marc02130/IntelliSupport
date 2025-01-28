@@ -382,11 +382,13 @@ CREATE POLICY "Allow service role full access to tickets"
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Admins can manage teams" ON public.teams;
 DROP POLICY IF EXISTS "Users can view teams in their organization" ON public.teams;
+DROP POLICY IF EXISTS "Service role has full access to teams" ON public.teams;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.teams TO authenticated;
+GRANT ALL ON public.teams TO service_role;
 
--- Enable Row Level Security (RLS)
+-- Enable RLS
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Admins can manage teams" ON public.teams
@@ -400,7 +402,7 @@ CREATE POLICY "Admins can manage teams" ON public.teams
     );
 
 CREATE POLICY "Users can view teams in their organization" ON public.teams
-    FOR SELECT 
+    FOR SELECT
     USING (
         EXISTS (
             SELECT 1 FROM users 
@@ -409,16 +411,32 @@ CREATE POLICY "Users can view teams in their organization" ON public.teams
         )
     );
 
+-- Add service role policy
+CREATE POLICY "Service role has full access to teams" ON public.teams
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
 -- -------------------------- Team Tags --------------------------
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Users can view team tags in their org and admins view all" ON public.team_tags;
 DROP POLICY IF EXISTS "Admins can manage team tags" ON public.team_tags;
+DROP POLICY IF EXISTS "Service role has full access to team_tags" ON public.team_tags;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.team_tags TO authenticated;
+GRANT ALL ON public.team_tags TO service_role;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE team_tags ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to team_tags" ON public.team_tags
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Users can view team tags in their organization and admins can view all
 CREATE POLICY "Users can view team tags in their org and admins view all" ON team_tags
@@ -443,12 +461,21 @@ CREATE POLICY "Admins can manage team tags" ON team_tags
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Allow authenticated users to read tags" ON public.tags;
 DROP POLICY IF EXISTS "Allow admins to manage tags" ON public.tags;
+DROP POLICY IF EXISTS "Service role has full access to tags" ON public.tags;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tags TO authenticated;
+GRANT ALL ON public.tags TO service_role;
 
 -- Enable RLS for tags
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to tags" ON public.tags
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Create policy to allow all authenticated users to read tags
 CREATE POLICY "Allow authenticated users to read tags" ON public.tags
@@ -468,12 +495,21 @@ DROP POLICY IF EXISTS "Admins and agents can manage ticket tags" ON public.ticke
 DROP POLICY IF EXISTS "Users can manage tags on their own tickets" ON public.ticket_tags;
 DROP POLICY IF EXISTS "Users can view tags on organization tickets" ON public.ticket_tags;
 DROP POLICY IF EXISTS "Team members can manage ticket tags" ON public.ticket_tags;
+DROP POLICY IF EXISTS "Service role has full access to ticket_tags" ON public.ticket_tags;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_tags TO authenticated;
+GRANT ALL ON public.ticket_tags TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.ticket_tags ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to ticket_tags" ON public.ticket_tags
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Allow admins and agents to manage all ticket tags
 CREATE POLICY "Admins and agents can manage ticket tags" ON public.ticket_tags
@@ -522,12 +558,21 @@ CREATE POLICY "Team members can manage ticket tags" ON public.ticket_tags
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Users can view active comment templates" ON public.comment_templates;
 DROP POLICY IF EXISTS "Admins can manage comment templates" ON public.comment_templates;
+DROP POLICY IF EXISTS "Service role has full access to comment_templates" ON public.comment_templates;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.comment_templates TO authenticated;
+GRANT ALL ON public.comment_templates TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.comment_templates ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to comment_templates" ON public.comment_templates
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Policy for viewing comment templates
 CREATE POLICY "Users can view active comment templates" ON comment_templates
@@ -549,12 +594,21 @@ CREATE POLICY "Admins can manage comment templates" ON comment_templates
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Admins and Team Leads can manage team members" ON public.team_members;
 DROP POLICY IF EXISTS "Users can view team members" ON public.team_members;
+DROP POLICY IF EXISTS "Service role has full access to team_members" ON public.team_members;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.team_members TO authenticated;
+GRANT ALL ON public.team_members TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to team_members" ON public.team_members
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Admins and Team Leads can manage team members
 CREATE POLICY "Admins and Team Leads can manage team members" ON public.team_members
@@ -618,12 +672,21 @@ CREATE POLICY "Allow service role full access to audit_log"
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Admins and Team Leads can manage team schedules" ON public.team_schedules;
 DROP POLICY IF EXISTS "Users can view team schedules" ON public.team_schedules;
+DROP POLICY IF EXISTS "Service role has full access to team_schedules" ON public.team_schedules;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.team_schedules TO authenticated;
+GRANT ALL ON public.team_schedules TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.team_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to team_schedules" ON public.team_schedules
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Admins and Team Leads can manage team schedules
 CREATE POLICY "Admins and Team Leads can manage team schedules" ON public.team_schedules
@@ -653,12 +716,21 @@ CREATE POLICY "Users can view team schedules" ON public.team_schedules
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Authenticated users can view knowledge domains" ON public.knowledge_domain;
 DROP POLICY IF EXISTS "Admins can manage knowledge domains" ON public.knowledge_domain;
+DROP POLICY IF EXISTS "Service role has full access to knowledge_domain" ON public.knowledge_domain;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.knowledge_domain TO authenticated;
+GRANT ALL ON public.knowledge_domain TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.knowledge_domain ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to knowledge_domain" ON public.knowledge_domain
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Allow all authenticated users to view knowledge domains
 CREATE POLICY "Authenticated users can view knowledge domains" ON public.knowledge_domain
@@ -676,12 +748,21 @@ CREATE POLICY "Admins can manage knowledge domains" ON public.knowledge_domain
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Authenticated users can view user knowledge domains" ON public.user_knowledge_domain;
 DROP POLICY IF EXISTS "Admins can manage user knowledge domains" ON public.user_knowledge_domain;
+DROP POLICY IF EXISTS "Service role has full access to user_knowledge_domain" ON public.user_knowledge_domain;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_knowledge_domain TO authenticated;
+GRANT ALL ON public.user_knowledge_domain TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.user_knowledge_domain ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to user_knowledge_domain" ON public.user_knowledge_domain
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Allow all authenticated users to view user knowledge domains
 CREATE POLICY "Authenticated users can view user knowledge domains" ON public.user_knowledge_domain
@@ -700,12 +781,21 @@ CREATE POLICY "Admins can manage user knowledge domains" ON public.user_knowledg
 DROP POLICY IF EXISTS "Users can view attachments for accessible entities" ON public.attachments;
 DROP POLICY IF EXISTS "Users can add attachments to accessible entities" ON public.attachments;
 DROP POLICY IF EXISTS "Users can delete their own attachments" ON public.attachments;
+DROP POLICY IF EXISTS "Service role has full access to attachments" ON public.attachments;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.attachments TO authenticated;
+GRANT ALL ON public.attachments TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
+
+-- Add service role policy
+CREATE POLICY "Service role has full access to attachments" ON public.attachments
+    FOR ALL 
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- Allow users to view attachments for entities they can access
 CREATE POLICY "Users can view attachments for accessible entities" ON public.attachments
@@ -999,10 +1089,11 @@ USING (
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Allow service role full access" ON public.embeddings;
 DROP POLICY IF EXISTS "Allow authenticated read access" ON public.embeddings;
+DROP POLICY IF EXISTS "Allow authenticated delete access" ON public.embeddings;
 
 -- Grant table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.embeddings TO service_role;
-GRANT SELECT ON public.embeddings TO authenticated;
+GRANT SELECT, DELETE ON public.embeddings TO authenticated;
 
 -- Add after embeddings table creation
 ALTER TABLE embeddings ENABLE ROW LEVEL SECURITY;
@@ -1014,5 +1105,10 @@ CREATE POLICY "Allow service role full access" ON embeddings
 
 CREATE POLICY "Allow authenticated read access" ON embeddings
   FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Allow authenticated delete access" ON embeddings
+  FOR DELETE
   TO authenticated
   USING (true);

@@ -1,0 +1,16 @@
+{
+  "imports": {
+    "@langchain/core/runnables": "npm:@langchain/core@0.1.48/runnables",
+    "@langchain/core/documents": "npm:@langchain/core@0.1.48/documents",
+    "@langchain/community/vectorstores/supabase": "npm:@langchain/community@0.0.41/vectorstores/supabase",
+    "@langchain/openai": "npm:@langchain/openai@0.0.24",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.39.0"
+  },
+  "tasks": {
+    "deploy": "supabase functions deploy route-ticket"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"]
+  }
+} 
