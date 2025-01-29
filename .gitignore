@@ -24,11 +24,10 @@ dist-ssr
 *.sw?
 
 # Environment variables
-.env.local
-.env.prod
 .env
-.env.test
 .env.*
+.env.prod
+.env.test
 
 # Docker
 docker-compose.yml

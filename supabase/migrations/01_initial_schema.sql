@@ -7,6 +7,8 @@ CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- Create custom session variable for audit control
 SELECT set_config('session.audit_trigger_enabled', 'TRUE', FALSE);
+SELECT set_config('app.edge_function_url', CURRENT_SETTING('EDGE_FUNCTION_URL'), false);
+SELECT set_config('app.service_role_key', CURRENT_SETTING('SERVICE_ROLE_KEY'), false); 
 
 -- Organizations table
 CREATE TABLE public.organizations (

@@ -1,12 +1,6 @@
+import React from 'react'
 import { useEffect, useState } from 'react'
 import { config } from '../config'
-
-// Add environment type declarations
-declare global {
-  interface ImportMetaEnv {
-    VITE_SUPABASE_URL: string
-  }
-}
 
 interface MessageEditorProps {
   initialText: string

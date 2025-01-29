@@ -83,26 +83,17 @@ END;
 $$;
 
 -- Update process embedding job to use Supabase environment
-CREATE OR REPLACE FUNCTION process_embedding_queue_job()
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
+CREATE OR REPLACE FUNCTION process_embedding_queue() 
+RETURNS void AS $$
 BEGIN
-    -- Log start
-    INSERT INTO cron_job_logs (job_name, status) 
-    VALUES ('process-embedding-queue', 'started');
-
-    BEGIN
-        PERFORM
-            net.http_post(
-                url := 'https://ntlxuoqhpzckyvzpmicn.supabase.co/functions/v1/process-embedding-queue',
-                headers := jsonb_build_object(
-                    'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50bHh1b3FocHpja3l2enBtaWNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzI5NDI3NywiZXhwIjoyMDUyODcwMjc3fQ.nfWglEEJUyOPlQZOP8sUszlv1e1nPWzRCxu9i6jVz9E',
-                    'Content-Type', 'application/json'
-                ),
-                body := '{}'
-            );
+    PERFORM net.http_post(
+        url := current_setting('app.edge_function_url') || '/process-embedding-queue',
+        headers := jsonb_build_object(
+            'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
+            'Content-Type', 'application/json'
+        ),
+        body := '{}'
+    );
 
         -- Log success
         INSERT INTO cron_job_logs (job_name, status)
@@ -112,9 +103,8 @@ BEGIN
         INSERT INTO cron_job_logs (job_name, status, error)
         VALUES ('process-embedding-queue', 'failed', SQLERRM);
         RAISE;
-    END;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Function to route unassigned tickets
 CREATE OR REPLACE FUNCTION route_tickets_job()
@@ -128,15 +118,14 @@ BEGIN
     VALUES ('route-tickets', 'started');
 
     BEGIN
-        PERFORM
-            net.http_post(
-                url := 'https://ntlxuoqhpzckyvzpmicn.supabase.co/functions/v1/route-tickets-job',
-                headers := jsonb_build_object(
-                    'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50bHh1b3FocHpja3l2enBtaWNuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzI5NDI3NywiZXhwIjoyMDUyODcwMjc3fQ.nfWglEEJUyOPlQZOP8sUszlv1e1nPWzRCxu9i6jVz9E',
-                    'Content-Type', 'application/json'
-                ),
-                body := '{}'
-            );
+        PERFORM net.http_post(
+            url := current_setting('app.edge_function_url') || '/route-tickets-job',
+            headers := jsonb_build_object(
+                'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
+                'Content-Type', 'application/json'
+            ),
+            body := '{}'
+        );
 
         -- Log success
         INSERT INTO cron_job_logs (job_name, status)

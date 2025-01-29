@@ -1,6 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
-import { OpenAI } from 'openai'
+import { serve } from 'https://deno.fresh.dev/std@0.168.0/http/server.ts'
+import { OpenAI } from 'https://esm.sh/openai@4.28.0'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { MODELS, PROMPT_TEMPLATES } from './config.ts'
 import { Database } from '../_shared/database.types'
+
+// Initialize OpenAI with environment variable
+const openai = new OpenAI({
+  apiKey: Deno.env.get('OPENAI_API_KEY')
+})
 
 // Initialize Supabase client
 const supabaseClient = createClient(
@@ -8,15 +15,10 @@ const supabaseClient = createClient(
   Deno.env.get('SERVICE_ROLE_KEY') ?? '',
   {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false
+      persistSession: false
     }
   }
 )
-
-const openai = new OpenAI({
-  apiKey: Deno.env.get('OPENAI_API_KEY')
-})
 
 interface CustomerContext {
   customer_id: string
@@ -39,7 +41,7 @@ interface RequestBody {
   context_type: string
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   const startTime = Date.now()
   let customer_context: CustomerContext | undefined
   let context_type: string | undefined
@@ -104,7 +106,7 @@ Deno.serve(async (req) => {
 
     // Generate response using GPT-4
     const completion = await openai.chat.completions.create({
-      model: Deno.env.get('OPENAI_MODEL') || "gpt-4-turbo-preview",
+      model: "gpt-4",
       messages: [
         {
           role: "system",
@@ -112,12 +114,9 @@ Deno.serve(async (req) => {
         },
         {
           role: "user",
-          content: `Generate a ${context_type} message for ${customer_context.customer_name}.
-            Additional Context: ${JSON.stringify(customer_context.additional_context)}`
+          content: `Generate a message for context: ${JSON.stringify(customer_context)}\nType: ${context_type}`
         }
-      ],
-      temperature: 0.7,
-      max_tokens: 500
+      ]
     })
 
     // Extract and format the generated message
@@ -129,7 +128,7 @@ Deno.serve(async (req) => {
         .from('message_generation_logs')
         .update({
           generated_message: generatedMessage,
-          model_used: Deno.env.get('OPENAI_MODEL') || "gpt-4-turbo-preview",
+          model_used: "gpt-4",
           usage_metrics: completion.usage,
           status: 'completed',
           success: true,
@@ -148,7 +147,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         message: generatedMessage,
         metadata: {
-          model: Deno.env.get('OPENAI_MODEL') || "gpt-4-turbo-preview",
+          model: "gpt-4",
           usage: completion.usage,
           context_used: {
             style: customer_context.preferred_style,
@@ -169,35 +168,36 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    // Log error if we have context
+    // Log error
     if (customer_context?.customer_id) {
-      const { error: logError } = await supabaseClient
+      await supabaseClient
         .from('message_generation_logs')
         .insert({
           customer_id: customer_context.customer_id,
-          context_type,
+          context_type: context_type || 'unknown',
           input_context: customer_context,
-          error_message: error.message,
           status: 'failed',
-          success: false,
+          error_message: error.message,
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
           generation_time: Date.now() - startTime,
-          completed_at: new Date().toISOString()
+          success: false
         })
-
-      if (logError) {
-        console.error('Error logging generation failure:', logError)
-      }
     }
 
-    console.error('Error generating message:', error)
+    // Return error response
     return new Response(
-      JSON.stringify({ 
-        error: 'Error generating message', 
-        details: error.message 
+      JSON.stringify({
+        error: error.message,
+        metadata: {
+          customer_id: customer_context?.customer_id,
+          context_type,
+          timestamp: new Date().toISOString()
+        }
       }),
       { 
-        status: 500, 
-        headers: { 'Content-Type': 'application/json' } 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
       }
     )
   }
