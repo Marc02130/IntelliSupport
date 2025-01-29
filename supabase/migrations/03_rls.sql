@@ -271,6 +271,32 @@ CREATE POLICY "Enable write access for admins only" ON public.roles
 CREATE POLICY "Admins can manage roles" ON public.roles
     FOR ALL USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
 
+-- -------------------------- Roles Permissions --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Enable read access for users and admins" ON public.role_permissions;
+DROP POLICY IF EXISTS "Enable write access for admins only" ON public.role_permissions;
+DROP POLICY IF EXISTS "Admins can manage role permissions" ON public.role_permissions;
+
+-- Grant basic table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.role_permissions TO authenticated;
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
+
+-- Add RLS policies
+-- Create RLS policies for permissions
+CREATE POLICY "Enable read access for users and admins" ON public.role_permissions
+    FOR SELECT
+    TO authenticated
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable write access for admins only" ON public.role_permissions
+    FOR ALL
+    USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
+CREATE POLICY "Admins can manage role permissions" ON public.role_permissions
+    FOR ALL USING ((auth.jwt()->>'user_metadata')::jsonb->>'role' = 'admin');
+
 -- -------------------------- Sidebar Navigation --------------------------
 -- Drop any existing policies
 DROP POLICY IF EXISTS "Authenticated users can view navigation items" ON public.sidebar_navigation;
@@ -1112,3 +1138,214 @@ CREATE POLICY "Allow authenticated delete access" ON embeddings
   FOR DELETE
   TO authenticated
   USING (true);
+
+    -- -------------------------- message_templates --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Message templates viewable by all" ON public.message_templates;
+DROP POLICY IF EXISTS "Message templates editable by agents" ON public.message_templates;
+DROP POLICY IF EXISTS "Service role can manage message templates" ON public.message_templates;
+
+-- Grant table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.message_templates TO service_role;
+GRANT SELECT, DELETE ON public.message_templates TO authenticated;
+
+-- Enable RLS for new tables
+ALTER TABLE message_templates ENABLE ROW LEVEL SECURITY;
+
+-- Message Templates: service role can manage message templates
+CREATE POLICY "Service role can manage message templates" 
+ON message_templates 
+FOR ALL 
+TO service_role 
+USING (true);
+
+-- Message Templates: Only agents can create/edit, everyone can view
+CREATE POLICY "Message templates viewable by all" 
+ON message_templates FOR SELECT 
+TO authenticated 
+USING (true);
+
+CREATE POLICY "Message templates editable by agents" 
+ON message_templates FOR ALL 
+TO authenticated 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid() 
+    AND users.role IN ('admin', 'agent')
+  )
+);
+
+    -- -------------------------- communication_history --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "View own communication history" ON public.communication_history;
+DROP POLICY IF EXISTS "Manage customer communication history" ON public.communication_history;
+DROP POLICY IF EXISTS "Service role can manage communication history" ON public.communication_history;
+
+-- Grant table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.communication_history TO service_role;
+GRANT SELECT, INSERT, DELETE ON public.communication_history TO authenticated;
+
+-- Enable RLS for new tables
+ALTER TABLE communication_history ENABLE ROW LEVEL SECURITY;
+
+-- Communication History: service role can manage communication history
+CREATE POLICY "Service role can manage communication history" 
+ON communication_history 
+FOR ALL 
+TO service_role 
+USING (true);
+
+-- Communication History: Users can view their own history or history of customers they support
+CREATE POLICY "View own communication history"
+ON communication_history FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 
+        FROM users agent
+        WHERE agent.id = auth.uid()
+        AND agent.role IN ('customer')
+    )
+);
+
+-- Communication History: Agents can create/update history for their customers
+CREATE POLICY "Manage customer communication history"
+ON communication_history FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 
+        FROM users agent
+        WHERE agent.id = auth.uid()
+        AND agent.role IN ('admin', 'agent')
+    )
+);
+
+    -- -------------------------- customer_preferences --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Manage own preferences" ON public.customer_preferences;
+DROP POLICY IF EXISTS "Service role can manage customer preferences" ON public.customer_preferences;
+DROP POLICY IF EXISTS "Admins can view cron logs" ON public.cron_job_logs;
+
+-- Grant table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_preferences TO service_role;
+GRANT SELECT, DELETE ON public.customer_preferences TO authenticated;   
+
+-- Enable RLS for new tables
+ALTER TABLE customer_preferences ENABLE ROW LEVEL SECURITY;
+
+-- Customer Preferences: service role can manage customer preferences
+CREATE POLICY "Service role can manage customer preferences" 
+ON customer_preferences 
+FOR ALL 
+TO service_role 
+USING (true);
+
+-- Customer Preferences: Users can view/edit their own preferences
+CREATE POLICY "Manage own preferences"
+ON customer_preferences FOR ALL
+TO authenticated
+USING (customer_id = auth.uid());
+
+-- Cron Job Logs: Only admins can view
+CREATE POLICY "Admins can view cron logs"
+ON cron_job_logs FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = auth.uid()
+    AND users.role = 'admin'
+  )
+);
+
+    -- -------------------------- cron_job_logs --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Service role can manage cron job logs" ON public.cron_job_logs;
+
+-- Grant table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.cron_job_logs TO service_role;
+
+-- Enable RLS for new tables
+ALTER TABLE cron_job_logs ENABLE ROW LEVEL SECURITY;
+
+-- Cron Job Logs: service role can manage cron job logs
+CREATE POLICY "Service role can manage cron job logs" 
+ON cron_job_logs 
+FOR ALL 
+TO service_role 
+USING (true);
+
+-- -------------------------- agent_style --------------------------
+-- Drop any existing policies
+DROP POLICY IF EXISTS "Agents can manage their styles" ON public.agent_style;
+DROP POLICY IF EXISTS "Service role can manage agent styles" ON public.agent_style;
+
+-- Grant table permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.agent_style TO service_role;
+GRANT SELECT, UPDATE ON public.agent_style TO authenticated;
+
+-- Enable RLS
+ALTER TABLE agent_style ENABLE ROW LEVEL SECURITY;
+
+-- Service role full access
+CREATE POLICY "Service role can manage agent styles"
+ON agent_style FOR ALL
+TO service_role
+USING (true);
+
+-- Agents can manage their own styles
+CREATE POLICY "Agents can manage their styles"
+ON agent_style FOR ALL
+TO authenticated
+USING (
+    agent_id = auth.uid() 
+    OR EXISTS (
+        SELECT 1 FROM users
+        WHERE users.id = auth.uid()
+        AND users.role = 'admin'
+    )
+);
+
+-- -------------------------- message_generation_logs --------------------------
+-- Drop existing policies
+DROP POLICY IF EXISTS "Service role can manage message generation logs" ON message_generation_logs;
+DROP POLICY IF EXISTS "Users can view their own message generation logs" ON message_generation_logs;
+DROP POLICY IF EXISTS "Agents can view customer message generation logs" ON message_generation_logs;
+
+-- Grant permissions
+GRANT SELECT, INSERT, UPDATE ON message_generation_logs TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON message_generation_logs TO service_role;
+
+-- Message Generation Logs RLS
+ALTER TABLE message_generation_logs ENABLE ROW LEVEL SECURITY;
+
+-- Service role full access
+CREATE POLICY "Service role can manage message generation logs"
+ON message_generation_logs FOR ALL
+TO service_role
+USING (true);
+
+-- Users can view their own logs
+CREATE POLICY "Users can view their own message generation logs"
+ON message_generation_logs FOR SELECT
+TO authenticated
+USING (
+    customer_id = auth.uid()
+);
+
+-- Agents can view logs for their organization's customers
+CREATE POLICY "Agents can view customer message generation logs"
+ON message_generation_logs FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 
+        FROM users agent
+        JOIN users customer ON customer.organization_id = agent.organization_id
+        WHERE agent.id = auth.uid()
+        AND customer.id = message_generation_logs.customer_id
+        AND agent.role IN ('admin', 'agent')
+    )
+);

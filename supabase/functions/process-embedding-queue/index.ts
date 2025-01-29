@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js"
-import { OpenAI } from "openai"
-import { PineconeClient } from "@pinecone-database/pinecone"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { OpenAI } from 'https://esm.sh/openai@4.24.1'
+import { PineconeClient } from 'https://esm.sh/@pinecone-database/pinecone@1.1.2'
 
 // Add startup logging at the very top
 console.log("[STARTUP] Function loading:", {

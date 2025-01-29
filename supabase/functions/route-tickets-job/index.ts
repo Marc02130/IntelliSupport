@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import type { Ticket } from "../route-ticket/types.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import type { Ticket } from '../route-ticket/types.ts'
 
 export const onRequest = async (context: Context) => {
   const supabaseClient = createClient(
@@ -21,7 +21,7 @@ export const onRequest = async (context: Context) => {
 
     console.log(`Found ${tickets?.length || 0} unassigned tickets`);
 
-    // Route each ticket
+    // Route each ticket by calling route-ticket function
     const results = await Promise.all(
       (tickets || []).map(async (ticket: Ticket) => {
         try {

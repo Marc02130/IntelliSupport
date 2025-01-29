@@ -258,17 +258,16 @@ CREATE TABLE public.sidebar_navigation (
     updated_by UUID REFERENCES auth.users(id)
 );
 
--- Create audit log table
-CREATE TABLE public.audit_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    table_name TEXT NOT NULL,
-    record_id UUID NOT NULL,
-    operation TEXT NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')),
+CREATE TABLE IF NOT EXISTS audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type TEXT NOT NULL,
+    entity_id UUID NOT NULL,
+    action TEXT NOT NULL,
     old_data JSONB,
     new_data JSONB,
-    changed_fields TEXT[],
-    performed_by UUID REFERENCES auth.users(id),
-    performed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    metadata JSONB DEFAULT '{}'::jsonb,
+    performed_by UUID,
+    performed_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create comment templates table
@@ -334,6 +333,79 @@ CREATE TABLE IF NOT EXISTS embeddings (
   embedding vector(3072)
 );
 
+-- Add logging table for cron jobs
+CREATE TABLE IF NOT EXISTS cron_job_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    job_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE message_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_text TEXT NOT NULL,
+    context_type TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    effectiveness_score FLOAT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE communication_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID REFERENCES auth.users(id),
+    message_text TEXT NOT NULL,
+    template_id UUID REFERENCES message_templates(id),
+    sent_at TIMESTAMPTZ,
+    response_received_at TIMESTAMPTZ,
+    effectiveness_metrics JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE customer_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID REFERENCES auth.users(id),
+    preferred_style TEXT,
+    preferred_times JSONB,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    communication_frequency TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add agent_style table
+CREATE TABLE agent_style (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    agent_id UUID REFERENCES auth.users(id),
+    style_name TEXT NOT NULL,
+    style_description TEXT,
+    tone_preferences JSONB,  -- e.g., {"formality": "high", "empathy": "medium"}
+    language_patterns TEXT[], -- Common phrases or patterns used
+    effectiveness_metrics JSONB, -- Track how well this style performs
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add at the end of the file
+-- Message generation logs
+CREATE TABLE message_generation_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    customer_id UUID REFERENCES auth.users(id),
+    context_type TEXT NOT NULL,
+    input_context JSONB NOT NULL,
+    generated_message TEXT,
+    model_used TEXT,
+    usage_metrics JSONB,
+    status TEXT NOT NULL,
+    success BOOLEAN,
+    error_message TEXT,
+    generation_time INTEGER,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 COMMENT ON COLUMN search_queries.relationship_type IS 'Type of relationship (one_to_many or many_to_many)';
 COMMENT ON COLUMN search_queries.relationship_join_table IS 'For many_to_many, specifies the junction table';
 COMMENT ON COLUMN search_queries.relationship_local_key IS 'Column in parent table that links to related data';
@@ -367,10 +439,10 @@ CREATE INDEX IF NOT EXISTS idx_team_members_user ON public.team_members(user_id)
 CREATE INDEX IF NOT EXISTS idx_team_schedules_team ON public.team_schedules(team_id);
 CREATE INDEX IF NOT EXISTS idx_team_schedules_user ON public.team_schedules(user_id);
 
-CREATE INDEX IF NOT EXISTS idx_audit_log_table ON audit_log(table_name);
-CREATE INDEX IF NOT EXISTS idx_audit_log_record ON audit_log(record_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_performed_by ON audit_log(performed_by);
-CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at);
+-- Update indexes to use new column names
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_performed_by ON audit_log (performed_by);
+CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log (performed_at);
 
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_created_by ON attachments(created_by);
@@ -378,5 +450,15 @@ CREATE INDEX IF NOT EXISTS idx_attachments_created_by ON attachments(created_by)
 CREATE INDEX IF NOT EXISTS idx_ticket_routing_ticket ON ticket_routing_history(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_routing_assigned_to ON ticket_routing_history(assigned_to);
 
--- Add metadata index
 CREATE INDEX IF NOT EXISTS idx_embeddings_metadata ON embeddings USING GIN (metadata);
+
+CREATE INDEX IF NOT EXISTS idx_message_generation_logs_customer ON message_generation_logs(customer_id);
+CREATE INDEX IF NOT EXISTS idx_message_generation_logs_status ON message_generation_logs(status);
+CREATE INDEX IF NOT EXISTS idx_message_generation_logs_success ON message_generation_logs(success);
+
+CREATE INDEX IF NOT EXISTS idx_communication_history_customer_satisfaction 
+    ON communication_history ((effectiveness_metrics->>'customer_satisfaction'));
+CREATE INDEX IF NOT EXISTS idx_communication_history_sent_at 
+    ON communication_history (sent_at);
+CREATE INDEX IF NOT EXISTS idx_communication_history_customer 
+    ON communication_history (customer_id);

@@ -1,238 +1,3 @@
--- Seed auth.users table with metadata
-INSERT INTO auth.users (
-    raw_app_meta_data,
-    last_sign_in_at,
-    instance_id,
-    confirmation_token,
-    email_change,
-    email_change_token_current,
-    email_change_confirm_status,
-    email_change_token_new,
-    recovery_token,
-    id, 
-    email, 
-    encrypted_password,
-    confirmation_sent_at,
-    email_confirmed_at, 
-    created_at, 
-    updated_at, 
-    aud, 
-    role,
-    raw_user_meta_data
-)
-VALUES 
-    -- Marc Breneiser
-    (
-        '{"provider": "email","providers": ["email"]}',
-        NOW(),
-        '00000000-0000-0000-0000-000000000000',
-        '',
-        '',
-        '',
-        0,
-        '',
-        '',
-        gen_random_uuid(),
-        'marc.breneiser@gmail.com',
-        crypt('Password1@#', gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW(),
-        NOW(),
-        'authenticated',
-        'authenticated',
-        jsonb_build_object(
-            'full_name', 'Marc AdminOne',
-            'role', 'admin'
-        )
-    ),
-    -- Marc Gauntlet
-    (
-        '{"provider": "email","providers": ["email"]}',
-        NOW(),
-        '00000000-0000-0000-0000-000000000000',
-        '',
-        '',
-        '',
-        0,
-        '',
-        '',
-        gen_random_uuid(),
-        'marc.breneiser@gauntletai.com',
-        crypt('Password1@#', gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW(),
-        NOW(),
-        'authenticated',
-        'authenticated',
-        jsonb_build_object(
-            'full_name', 'Marc AdminTwo',
-            'role', 'admin'
-        )
-    ),
-    -- Agent One
-    (
-        '{"provider": "email","providers": ["email"]}',
-        NOW(),
-        '00000000-0000-0000-0000-000000000000',
-        '',
-        '',
-        '',
-        0,
-        '',
-        '',
-        gen_random_uuid(),
-        'driver-revise-snub@duck.com',
-        crypt('Password1@#', gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW(),
-        NOW(),
-        'authenticated',
-        'authenticated',
-        jsonb_build_object(
-            'full_name', 'Marc AgentOne',
-            'role', 'agent'
-        )
-    ),
-    -- Agent Two
-    (
-        '{"provider": "email","providers": ["email"]}',
-        NOW(),
-        '00000000-0000-0000-0000-000000000000',
-        '',
-        '',
-        '',
-        0,
-        '',
-        '',
-        gen_random_uuid(),
-        'junkie-quail-saint@duck.com',
-        crypt('Password1@#', gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW(),
-        NOW(),
-        'authenticated',
-        'authenticated',
-        jsonb_build_object(
-            'full_name', 'Marc AgentTwo',
-            'role', 'agent'
-        )
-    ),
-    -- User One
-    (
-        '{"provider": "email","providers": ["email"]}',
-        NOW(),
-        '00000000-0000-0000-0000-000000000000',
-        '',
-        '',
-        '',
-        0,
-        '',
-        '',
-        gen_random_uuid(),
-        'arise-duct-snore@duck.com',
-        crypt('Password1@#', gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW(),
-        NOW(),
-        'authenticated',
-        'authenticated',
-        jsonb_build_object(
-            'full_name', 'Marc UserOne',
-            'role', 'customer'
-        )
-    ),
-    -- User Two
-    (
-        '{"provider": "email","providers": ["email"]}',
-        NOW(),
-        '00000000-0000-0000-0000-000000000000',
-        '',
-        '',
-        '',
-        0,
-        '',
-        '',
-        gen_random_uuid(),
-        'spoiling-poem-cozy@duck.com',
-        crypt('Password1@#', gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW(),
-        NOW(),
-        'authenticated',
-        'authenticated',
-        jsonb_build_object(
-            'full_name', 'Marc UserTwo',
-            'role', 'customer'
-        )
-    );
-
--- Create public.users entries for all auth.users
-INSERT INTO public.users (id, first_name, last_name, role, email)
-SELECT 
-    au.id,
-    split_part(au.raw_user_meta_data->>'full_name', ' ', 1) as first_name,
-    split_part(au.raw_user_meta_data->>'full_name', ' ', 2) as last_name,
-    au.raw_user_meta_data->>'role' as role,
-    au.email
-FROM auth.users au
-ON CONFLICT (id) DO UPDATE 
-SET 
-    first_name = EXCLUDED.first_name,
-    last_name = EXCLUDED.last_name,
-    role = EXCLUDED.role,
-    email = EXCLUDED.email;
-
--- Seed Organizations
-INSERT INTO public.organizations (id, name, domain, description)
-VALUES 
-    ('e46d9208-d1c7-458c-856a-78f2c2bbe896', 'Acme Corp', 'acme.com', 'Acme Corp is a company that makes widgets'),
-    ('d70cb812-c796-4193-8db5-b3de781a3fb9', 'TechStart Inc', 'techstart.io', 'TechStart Inc is a company that makes widgets'),
-    ('3c29c34e-1110-4959-b499-b5f01ce55226', 'DevCorp Labs', 'devcorp.dev', 'DevCorp Labs is a company that makes widgets'),
-    ('3c29c34e-1110-4959-b499-b5f01ce55227', 'New User', '', 'New User'),
-    ('0ef7b9c5-f2cd-4dd4-9f33-ff71603fec7f', 'IntelliSupport', 'intellisupport.com', 'The world''s leading CRM solution for widget makers');
-
--- Assign Organizations to Users
-UPDATE public.users 
-SET organization_id = '0ef7b9c5-f2cd-4dd4-9f33-ff71603fec7f'
-WHERE role = 'admin' OR role = 'agent';
-
-UPDATE public.users 
-SET organization_id = '3c29c34e-1110-4959-b499-b5f01ce55226'
-WHERE id IN (
-    SELECT id 
-    FROM public.users 
-    WHERE role = 'customer' 
-    ORDER BY id 
-    LIMIT 1
-);
-
-UPDATE public.users 
-SET organization_id = 'e46d9208-d1c7-458c-856a-78f2c2bbe896'
-WHERE role = 'customer' AND organization_id IS NULL;
-
--- Assign user roles
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT 
-    r.id as role_id,
-    p.id as permission_id
-FROM auth.users au
-JOIN public.roles r ON r.name = au.raw_user_meta_data->>'role'
-CROSS JOIN public.permissions p
-WHERE p.name IN (
-    CASE 
-        WHEN au.raw_user_meta_data->>'role' = 'admin' THEN 'admin.access'
-        WHEN au.raw_user_meta_data->>'role' = 'agent' THEN 'tickets.view'
-        ELSE 'tickets.view.own'
-    END
-)
-ON CONFLICT (role_id, permission_id) DO NOTHING;
-
 -- Seed Knowledge Domains
 INSERT INTO public.knowledge_domain (name, description)
 VALUES 
@@ -318,105 +83,6 @@ SELECT
 FROM public.tickets t
 WHERE t.subject LIKE '%dashboard%';
 
--- Seed initial permissions
-INSERT INTO public.permissions (id, name, description, parent_id) VALUES
--- Admin Access
-('33333333-4444-5555-6666-777777777777', 'admin.access', 'Access to admin', null),
-
--- UI Permissions
-('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'dashboard.view', 'Access to view dashboard', null),
-
--- Sidebar Permissions
-('11111111-1111-1111-1111-111111111111', 'sidebar.view', 'Access to view sidebar', null),
-('22222222-2222-2222-2222-222222222222', 'sidebar.dashboard', 'Access to dashboard section', '11111111-1111-1111-1111-111111111111'),
-('33333333-3333-3333-3333-333333333333', 'sidebar.tickets', 'Access to tickets section', '11111111-1111-1111-1111-111111111111'),
-('44444444-4444-4444-4444-444444444444', 'sidebar.reports', 'Access to reports section', '11111111-1111-1111-1111-111111111111'),
-('55555555-5555-5555-5555-555555555555', 'sidebar.admin', 'Access to admin section', '11111111-1111-1111-1111-111111111111'),
-
--- Admin Permissions
-('66666666-6666-6666-6666-666666666666', 'admin.users.manage', 'Manage users', '55555555-5555-5555-5555-555555555555'),
-('77777777-7777-7777-7777-777777777777', 'admin.roles.manage', 'Manage roles', '55555555-5555-5555-5555-555555555555'),
-('88888888-8888-8888-8888-888888888888', 'admin.permissions.manage', 'Manage permissions', '55555555-5555-5555-5555-555555555555'),
-('99999999-9999-9999-9999-999999999999', 'admin.organizations.manage', 'Manage organizations', '55555555-5555-5555-5555-555555555555'),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin.teams.manage', 'Manage teams', '55555555-5555-5555-5555-555555555555'),
-('44444444-5555-6666-7777-888888888888', 'admin.navigation.manage', 'Manage navigation items', '33333333-4444-5555-6666-777777777777'),
-('55555555-6666-7777-8888-999999999999', 'admin.search_queries.manage', 'Manage search queries', '33333333-4444-5555-6666-777777777777'),
-
--- Team Permissions
-('11111111-2222-3333-4444-555555555551', 'team.view', 'Access to team section', null),
-('11111111-2222-3333-4444-555555555552', 'team.view.own', 'View own team', null),
-('11111111-2222-3333-4444-555555555553', 'team.view.org', 'View organization teams', null),
-
--- Reports Permissions
-('11111111-2222-3333-4444-555555555555', 'reports.view', 'Access to reports section', null),
-
--- Ticket Permissions
-('22222222-3333-4444-5555-666666666666', 'tickets.create', 'Ability to create tickets', null),
-('ffffffff-ffff-ffff-ffff-ffffffffffff', 'tickets.view', 'Access to tickets section', null),
-('ffffffff-ffff-ffff-ffff-fffffffffff2', 'tickets.view,internal', 'Access to tickets section', null),
-('ffffffff-ffff-ffff-ffff-fffffffffff1', 'tickets.view.customer', 'Access to tickets section', null),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'tickets.view.own', 'View own tickets', null),
-('cccccccc-cccc-cccc-cccc-cccccccccccc', 'tickets.view.org', 'View organization tickets', null),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'tickets.view.own.customer', 'View own tickets', null),
-('cccccccc-cccc-cccc-cccc-ccccccccccc1', 'tickets.view.org.customer', 'View organization tickets', null),
-('dddddddd-dddd-dddd-dddd-dddddddddddd', 'tickets.view.all', 'View all tickets', null),
-('66666666-7777-8888-9999-aaaaaaaaaaaa', 'tickets.view.assigned', 'View tickets assigned to me', 'ffffffff-ffff-ffff-ffff-ffffffffffff')
-
-ON CONFLICT (name) DO NOTHING;
-
--- Seed initial roles
-INSERT INTO public.roles (id, name, description) VALUES
-('11111111-1111-1111-1111-111111111112', 'admin', 'Administrator role with full access'),
-('22222222-2222-2222-2222-222222222223', 'agent', 'Support agent role'),
-('33333333-3333-3333-3333-333333333334', 'customer', 'Customer role');
-
--- Admin role permissions
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT 
-    '11111111-1111-1111-1111-111111111112',
-    id
-FROM public.permissions;
-
--- Agent role permissions
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT 
-    '22222222-2222-2222-2222-222222222223',
-    id
-FROM public.permissions 
-WHERE name IN (
-    'dashboard.view',
-    'tickets.view',
-    'tickets.view.internal',
-    'tickets.view.own',
-    'tickets.view.all',
-    'tickets.view.assigned',
-    'tickets.create',
-    'sidebar.view',
-    'reports.view',
-    'sidebar.reports',
-    'sidebar.tickets',
-    'sidebar.dashboard'
-);
-
--- Customer role permissions
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT 
-    '33333333-3333-3333-3333-333333333334',
-    id
-FROM public.permissions 
-WHERE name IN (
-    'dashboard.view',
-    'tickets.view.customer',
-    'tickets.view.own.customer',
-    'tickets.view.org.customer',
-    'tickets.create',
-    'reports.view',
-    'sidebar.view',
-    'sidebar.reports',
-    'sidebar.tickets',
-    'sidebar.dashboard'
-);
-
 -- Create initial teams
 INSERT INTO public.teams (id, name, description) VALUES
 ('11111111-1111-1111-1111-111111111113', 'Technical Support', 'Primary technical support team'),
@@ -443,1705 +109,6 @@ SELECT
     NOW() + INTERVAL '8 hours'
 FROM auth.users
 WHERE raw_user_meta_data->>'role' = 'agent';
-
--- Add search query definitions
-INSERT INTO public.search_queries 
-(id, name, description, base_table, query_definition, column_definitions, permissions_required, is_active) 
-VALUES
-(
-    'ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb',
-    'Search Queries',
-    'Manage search query definitions',
-    'search_queries',
-    jsonb_build_object(
-        'select', '*',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'name', 'desc', false)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'cell', 'info => info.getValue()'
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'cell', 'info => info.getValue()'
-        ),
-        jsonb_build_object(
-            'header', 'Base Table',
-            'accessorKey', 'base_table',
-            'cell', 'info => info.getValue()'
-        ),
-        jsonb_build_object(
-            'header', 'Query Definition',
-            'accessorKey', 'query_definition',
-            'type', 'json'
-        ),
-        jsonb_build_object(
-            'header', 'Column Definitions',
-            'accessorKey', 'column_definitions',
-            'type', 'json'
-        ),
-        jsonb_build_object(
-            'header', 'Permissions Required',
-            'accessorKey', 'permissions_required',
-            'type', 'json'
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'cell', 'info => info.getValue() ? "🟢" : "🔴"'
-        ),
-        jsonb_build_object(
-            'header', 'Created At',
-            'accessorKey', 'created_at',
-            'cell', 'info => new Date(info.getValue()).toLocaleDateString()'
-        )
-    ),
-    ARRAY['admin.search_queries.manage'],
-    true
-),
-(
-    'aaaaaaaa-0000-4000-a000-000000000001',
-    'Tickets by Status',
-    'Report showing ticket counts by status',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, count(*) as count',
-        'groupBy', ARRAY['status'],
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'status', 'desc', false)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Count',
-            'accessorKey', 'count'
-        )
-    ),
-    ARRAY['reports.view'],
-    true
-),
-(
-    'aaaaaaaa-0000-4000-a000-000000000002',
-    'Users',
-    'Manage system users',
-    'users',
-    jsonb_build_object(
-        'select', '*, organization_name:organizations!fk_users_organization(id,name)',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'last_name', 'desc', false),
-            jsonb_build_object('id', 'first_name', 'desc', false)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object('header', 'First Name', 'accessorKey', 'first_name'),
-        jsonb_build_object('header', 'Last Name', 'accessorKey', 'last_name'),
-        jsonb_build_object('header', 'Email', 'accessorKey', 'email'),
-        jsonb_build_object('header', 'Role', 'accessorKey', 'role'),
-        jsonb_build_object('header', 'Active', 'accessorKey', 'is_active', 'type', 'boolean'),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object('header', 'Created At', 'accessorKey', 'created_at')
-    ),
-    ARRAY['admin.users.manage'],
-    true
-)
-ON CONFLICT (name) DO NOTHING;
-
--- Add organization management search query
-INSERT INTO public.search_queries (
-    ID,
-    name,
-    description,
-    base_table,
-    permissions_required,
-    column_definitions,
-    query_definition,
-    is_active
-)
-VALUES (
-    'aac8ccae-fded-4169-ac10-094761cc0d6d',
-    'Organization Management',
-    'View and manage organizations',
-    'organizations',
-    ARRAY['admin.organizations.manage'],
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true,
-            'searchable', true
-        ),
-        jsonb_build_object(
-            'header', 'Domain',
-            'accessorKey', 'domain',
-            'type', 'text',
-            'required', false,
-            'searchable', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'text',
-            'required', false,
-            'searchable', true
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean',
-            'required', true,
-            'searchable', false
-        ),
-        jsonb_build_object(
-            'header', 'Created At',
-            'accessorKey', 'created_at',
-            'type', 'timestamp with time zone',
-            'required', false,
-            'searchable', false
-        )
-    ),
-    jsonb_build_object(
-        'select', 'id, name, domain, description, is_active, created_at',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'name', 'desc', false)
-        )
-    ),
-    true
-);
-
--- Add permission management search query
-INSERT INTO public.search_queries (
-    ID,
-    name,
-    description,
-    base_table,
-    permissions_required,
-    column_definitions,
-    query_definition,
-    is_active
-) VALUES (
-    '86ec2ebc-eb64-4403-a154-41407c311afc',
-    'Permission Management',
-    'View and manage system permissions',
-    'permissions',
-    ARRAY['admin.permissions.manage'],
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true,
-            'searchable', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'text',
-            'required', false,
-            'searchable', true
-        ),
-        jsonb_build_object(
-            'header', 'Parent Permission',
-            'accessorKey', 'parent_id',
-            'aliasName', 'parent_permission',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'permissions',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean',
-            'required', true,
-            'searchable', false
-        ),
-        jsonb_build_object(
-            'header', 'Created At',
-            'accessorKey', 'created_at',
-            'type', 'timestamp with time zone',
-            'required', false,
-            'searchable', false
-        )
-    ),
-    jsonb_build_object(
-        'select', '*, parent_permission:permissions!fk_permissions_parent(id, name)',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'name', 'desc', false)
-        )
-    ),
-    true
-);
-
--- Add ticket form query definition
-INSERT INTO public.search_queries 
-(id, name, description, base_table, query_definition, column_definitions, permissions_required, is_active) 
-VALUES
-(
-    'ffffffff-ffff-ffff-ffff-ffffffffffff',
-    'New Ticket Form',
-    'Form for creating/editing tickets',
-    'tickets',
-    jsonb_build_object(
-        'select', '*'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject',
-            'type', 'text',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        )
-    ),
-    ARRAY['tickets.create'],
-    true
-);
-
--- Fix My Assigned Tickets query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'My Assigned Tickets',
-    'View tickets assigned to me',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name, email), 
-        assignee:users!fk_tickets_assignee(id, full_name, email),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization_name:organizations!fk_tickets_organization(id, name)',
-        'where', jsonb_build_object(
-            'assignee_id', 'auth.uid()'  -- This will filter for tickets assigned to the current user
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject'
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        ),
-        jsonb_build_object(
-           'header', 'Requested by',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Assigned to',
-            'accessorKey', 'assignee_id',
-            'aliasName', 'assignee',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at'
-        )
-    ),
-    ARRAY['tickets.view.assigned'],
-    true
-);
-
--- Fix My Submitted Tickets query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'My Submitted Tickets',
-    'View tickets submitted by me',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name, email), 
-        assignee:users!fk_tickets_assignee(id, full_name, email),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization_name:organizations!fk_tickets_organization(id, name)',
-        'where', jsonb_build_object(
-            'requester_id', 'auth.uid()'  -- This will filter for the current user's tickets
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject'
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        ),
-        jsonb_build_object(
-           'header', 'Requested by',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Assigned to',
-            'accessorKey', 'assignee_id',
-            'aliasName', 'assignee',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at'
-        )
-    ),
-    ARRAY['tickets.view.own'],
-    true
-);
-
--- Add Organization Tickets search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'cccccccc-cccc-cccc-cccc-cccccccccccc',
-    'Organization Tickets',
-    'View organization tickets',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name, email), 
-        assignee:users!fk_tickets_assignee(id, full_name, email),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization_name:organizations!fk_tickets_organization(id, name)',
-        'where', jsonb_build_object(
-            'organization_id', '(SELECT organization_id FROM users WHERE id = auth.uid())'
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        ),
-        jsonb_build_object(
-           'header', 'Requested by',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Assigned to',
-            'accessorKey', 'assignee_id',
-            'aliasName', 'assignee',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at'
-        )
-    ),
-    ARRAY['tickets.view.org'],
-    true
-);
-
--- Fix My Submitted customer Tickets query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb11',
-    'Customer My Submitted Tickets',
-    'Customer tickets submitted by me',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name, email), 
-        assignee:users!fk_tickets_assignee(id, full_name, email),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization_name:organizations!fk_tickets_organization(id, name)',
-        'where', jsonb_build_object(
-            'requester_id', 'auth.uid()'  -- This will filter for the current user's tickets
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject'
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        ),
-        jsonb_build_object(
-           'header', 'Requested by',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Assigned to',
-            'accessorKey', 'assignee_id',
-            'aliasName', 'assignee',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at'
-        )
-    ),
-    ARRAY['tickets.view.own.customer'],
-    true
-);
-
--- Add Organization customer Tickets search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'cccccccc-cccc-cccc-cccc-cccccccccc11',
-    'Customer Organization Tickets',
-    'Customer organization tickets',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name, email), 
-        assignee:users!fk_tickets_assignee(id, full_name, email),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization_name:organizations!fk_tickets_organization(id, name)',
-        'where', jsonb_build_object(
-            'organization_id', '(SELECT organization_id FROM users WHERE id = auth.uid())'
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        ),
-        jsonb_build_object(
-           'header', 'Requested by',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Assigned to',
-            'accessorKey', 'assignee_id',
-            'aliasName', 'assignee',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'disabled', true,
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at'
-        )
-    ),
-    ARRAY['tickets.view.org.customer'],
-    true
-);
-
--- Add All Tickets search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    'All Tickets',
-    'View all tickets',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name, email), 
-        assignee:users!fk_tickets_assignee(id, full_name, email),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization_name:organizations!fk_tickets_organization(id, name)'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status'
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high')
-        ),
-        jsonb_build_object(
-           'header', 'Requested by',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Assigned to',
-            'accessorKey', 'assignee_id',
-            'aliasName', 'assignee',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at'
-        )
-    ),
-    ARRAY['tickets.view.all'],
-    true
-);
-
--- Add Teams search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'eeeeeeee-eeee-eeee-eeee-111111111111',
-    'Teams Management',
-    'Team management',
-    'teams',
-    jsonb_build_object(
-        'select', '*, 
-        organization:organizations!fk_teams_organization(id, name),
-        member_count:team_members!fk_team_members_team(count)::int,
-        tags:team_tags!fk_team_tags_team(tag:tags!fk_team_tags_tag(name))'
-    ),jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            ),
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Members',
-            'accessorKey', 'member_count',
-            'aliasName', 'member_count',
-            'type', 'computed',
-            'computedType', 'count',
-            'sourceTable', 'team_members',
-            'sourceKey', 'team_id'
-        ),
-        jsonb_build_object(
-            'header', 'Tags',
-            'accessorKey', 'tags',
-            'aliasName', 'tags',
-            'type', 'computed',
-            'computedType', 'array',
-            'sourceTable', 'team_tags',
-            'sourceKey', 'team_id',
-            'through', jsonb_build_object(
-                'table', 'tags',
-                'key', 'id',
-                'field', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean',
-            'required', true
-        )
-    ),
-    ARRAY['teams.view'],
-    true
-);
-
--- Add child search query for Team Members
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'eeeeeeee-eeee-eeee-eeee-222222222222',
-    'Team Members Management',
-    'Team member management',
-    'team_members',
-    'teams',
-    'team_id',
-    jsonb_build_object(
-        'select', 'id, team_id, user_id, role, is_active,
-        user_details:users!fk_team_members_user(id, full_name, email)'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Member',
-            'accessorKey', 'user_id',
-            'aliasName', 'user_details',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            ),
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Role',
-            'accessorKey', 'role',
-            'type', 'select',
-            'options', jsonb_build_array('lead', 'member')
-        )
-    ),
-    ARRAY['teams.view'],
-    true
-);
-
--- Add child search query for Team Tags
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'eeeeeeee-eeee-eeee-eeee-333333333333',
-    'Team Tags Management',
-    'Team tags management',
-    'team_tags',
-    'teams',
-    'team_id',
-    jsonb_build_object(
-        'select', 'tag_id, team_id, 
-        tag_name:tags!fk_team_tags_tag(id, name)'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Tag',
-            'accessorKey', 'tag_id',
-            'aliasName', 'tag_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'tags',
-                'value', 'id',
-                'label', 'name'
-            ),
-            'required', true
-        )
-    ),
-    ARRAY['teams.view'],
-    true
-);
-
--- Add child search query for Team Schedules
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'eeeeeeee-eeee-eeee-eeee-444444444444',
-    'Team Schedules Management',
-    'Team schedule management',
-    'team_schedules',
-    'teams',
-    'team_id',
-    jsonb_build_object(
-        'select', 'id, team_id, user_id, start_time, end_time,
-        user_name:users!fk_team_schedules_user(id, full_name)'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Member',
-            'accessorKey', 'user_id',
-            'aliasName', 'user_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            ),
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Start Time',
-            'accessorKey', 'start_time',
-            'type', 'datetime',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'End Time',
-            'accessorKey', 'end_time',
-            'type', 'datetime',
-            'required', true
-        )
-    ),
-    ARRAY['teams.view'],
-    true
-);
-
--- Add Role Management search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-bbbb-cccc-dddd-111111111111',
-    'Role Management',
-    'Manage system roles',
-    'roles',
-    jsonb_build_object(
-        'select', '*'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean',
-            'required', true
-        )
-    ),
-    ARRAY['admin.roles.manage'],
-    true
-);
-
--- Add Role Permissions child search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-bbbb-cccc-dddd-222222222222',
-    'Role Permissions',
-    'Manage role permissions',
-    'role_permissions',
-    'roles',
-    'role_id',
-    jsonb_build_object(
-        'select', 'id, role_id, permission_id,
-        permission:permissions!fk_role_permissions_permission(id, name, description)'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Permission',
-            'accessorKey', 'permission_id',
-            'aliasName', 'permission',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'permissions',
-                'value', 'id',
-                'label', 'name'
-            ),
-            'required', true
-        )
-    ),
-    ARRAY['admin.roles.manage'],
-    true
-);
-
--- Add Navigation Management search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'ffffffff-eeee-dddd-cccc-111111111111',
-    'Navigation Management',
-    'Manage sidebar navigation items',
-    'sidebar_navigation',
-    jsonb_build_object(
-        'select', '*, 
-        search_query:search_queries!fk_sidebar_navigation_search_query(id, name)',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'sort_order', 'desc', false)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Icon',
-            'accessorKey', 'icon',
-            'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Search Query',
-            'accessorKey', 'search_query_id',
-            'aliasName', 'search_query',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'search_queries',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'URL',
-            'accessorKey', 'url',
-            'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Sort Order',
-            'accessorKey', 'sort_order',
-            'type', 'number',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Required Permissions',
-            'accessorKey', 'permissions_required',
-            'type', 'json'
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean'
-        )
-    ),
-    ARRAY['admin.navigation.manage'],
-    true
-);
-
--- Add Knowledge Domain Management search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-0000-4000-a000-000000000003',
-    'Knowledge Domain Management',
-    'Manage knowledge domains and expertise levels',
-    'knowledge_domain',
-    jsonb_build_object(
-        'select', '*',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'name', 'desc', false)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean'
-        )
-    ),
-    ARRAY['admin.knowledge.manage'],
-    true
-);
-
--- First, insert main navigation items
-INSERT INTO public.sidebar_navigation 
-(id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active) 
-VALUES
--- Main navigation (no parent_id)
-('11111111-1111-1111-1111-222222222222', 'Dashboard', 'Main dashboard', '📊', null, null, '/', 10, ARRAY['sidebar.dashboard'], true),
-('22222222-2222-2222-2222-222222222222', 'Tickets', 'Ticket management', '🎫', null, null, null, 20, ARRAY['sidebar.tickets'], true),
-('33333333-3333-3333-3333-222222222222', 'Reports', 'System reports', '📈', null, null, null, 30, ARRAY['sidebar.reports'], true),
-('99999999-9999-9999-9999-222222222222', 'Admin', 'Administration', '⚙️', null, null, null, 40, ARRAY['sidebar.admin'], true),
-
--- Ticket sub-items
-('44444444-4444-4444-4444-222222222222', 'My Submitted Tickets', 'View tickets submitted by me', '📝', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '/list', 10, ARRAY['tickets.view.own'], true),
-('44444444-4444-4444-4444-222222222211', 'Customer Tickets', 'View tickets submitted by me', '📝', '22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb11', '/list', 10, ARRAY['tickets.view.own.customer'], true),
-('55555555-5555-5555-5555-222222222222', 'Organization Tickets', 'View organization tickets', '🏢', '22222222-2222-2222-2222-222222222222', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '/list', 20, ARRAY['tickets.view.org'], true),
-('55555555-5555-5555-5555-222222222211', 'Customer Org Tickets', 'View organization tickets', '🏢', '22222222-2222-2222-2222-222222222222', 'cccccccc-cccc-cccc-cccc-cccccccccc11', '/list', 20, ARRAY['tickets.view.org.customer'], true),
-('66666666-6666-6666-6666-222222222222', 'All Tickets', 'View all tickets', '📋', '22222222-2222-2222-2222-222222222222', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '/list', 30, ARRAY['tickets.view.all'], true),
-('77777777-7777-7777-7777-222222222222', 'Submit Ticket', 'Create new ticket', '➕', '22222222-2222-2222-2222-222222222222', 'ffffffff-ffff-ffff-ffff-ffffffffffff', '/datarecord/add', 40, ARRAY['tickets.create'], true),
-('88888888-8888-8888-8888-111111111111', 'My Assigned Tickets', 'View tickets assigned to me', '📋', '22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '/list', 15, ARRAY['tickets.view.assigned'], true),
-
--- Add report items under Reports section
-('bbbbbbbb-0000-4000-b000-000000000001',   'Tickets by Status', 'View ticket distribution by status', '📊', '33333333-3333-3333-3333-222222222222', 'aaaaaaaa-0000-4000-a000-000000000001', null, 10, ARRAY['reports.view'], true),
-
--- Admin sub-items
-('aaaaaaaa-bbbb-cccc-dddd-222222222222', 'Knowledge Domains', 'Manage Knowledge Domains', '🧠', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-0000-4000-a000-000000000003', '/list', 15, ARRAY['admin.knowledge.manage'], true),
-('aaaaaaaa-aaaa-aaaa-aaaa-222222222222', 'Users', 'User management', '👥', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-0000-4000-a000-000000000002', '/list', 10, ARRAY['admin.users.manage'], true),
-('bbbbbbbb-bbbb-bbbb-bbbb-222222222222', 'Roles', 'Role management', '🔑', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-bbbb-cccc-dddd-111111111111', '/list', 20, ARRAY['admin.roles.manage'], true),
-('cccccccc-cccc-cccc-cccc-222222222222', 'Permissions', 'Permission management', '🛡️', '99999999-9999-9999-9999-222222222222', 'aaaaaaaa-bbbb-cccc-dddd-222222222222', '/list', 30, ARRAY['admin.permissions.manage'], true),
-('dddddddd-dddd-dddd-dddd-222222222222', 'Organizations', 'Organization management', '🏢', '99999999-9999-9999-9999-222222222222', 'aac8ccae-fded-4169-ac10-094761cc0d6d', '/list', 40, ARRAY['admin.organizations.manage'], true),
-('ffffffff-ffff-ffff-ffff-222222222222', 'Search Queries', 'Search query management', '🔍', '99999999-9999-9999-9999-222222222222', 'ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb', '/list', 60, ARRAY['admin.search_queries.manage'], true),
-('11111111-2222-3333-4444-555555555555', 'Navigation', 'Navigation management', '🧭', '99999999-9999-9999-9999-222222222222', 'ffffffff-eeee-dddd-cccc-111111111111', '/list', 70, ARRAY['admin.navigation.manage'], true),
-('eeeeeeee-eeee-eeee-eeee-333333333333', 'Teams', 'Team management', '👥', '99999999-9999-9999-9999-222222222222', 'eeeeeeee-eeee-eeee-eeee-111111111111', '/list', 70, ARRAY['admin.teams.manage'], true);
-
--- Update Teams search query
-UPDATE search_queries 
-SET query_definition = jsonb_build_object(
-    'select', '*, 
-    organization:organizations!fk_teams_organization(id, name),
-    member_count:team_members!fk_team_members_team(count)::int,
-    tags:team_tags!fk_team_tags_team(tag:tags!fk_team_tags_tag(name))'
-)
-WHERE id = 'eeeeeeee-eeee-eeee-eeee-111111111111';
-
--- Add search query for My Team's Tickets
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11',
-    'My Team''s Tickets',
-    'View tickets assigned to my teams',
-    'tickets',
-    jsonb_build_object(
-        'select', '*, 
-        requester:users!fk_tickets_requester(id, full_name),
-        team_name:teams!fk_tickets_teams(id, name),
-        organization:organizations!fk_tickets_organization(id, name)',
-        'where', jsonb_build_object(
-            'team_id', '(select team_id as team_id from team_members where user_id = auth.uid())'
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Subject',
-            'accessorKey', 'subject',
-            'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Status',
-            'accessorKey', 'status',
-            'type', 'select',
-            'options', jsonb_build_array('open', 'pending', 'solved', 'closed')
-        ),
-        jsonb_build_object(
-            'header', 'Priority',
-            'accessorKey', 'priority',
-            'type', 'select',
-            'options', jsonb_build_array('low', 'medium', 'high', 'urgent')
-        ),
-        jsonb_build_object(
-            'header', 'Requester',
-            'accessorKey', 'requester_id',
-            'aliasName', 'requester',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'users',
-                'value', 'id',
-                'label', 'full_name'
-            )
-        ),
-        jsonb_build_object(
-           'header', 'Organization',
-            'accessorKey', 'organization_id',
-            'aliasName', 'organization_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'organizations',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Team',
-            'accessorKey', 'team_id',
-            'aliasName', 'team_name',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'teams',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),
-        jsonb_build_object(
-            'header', 'Created',
-            'accessorKey', 'created_at',
-            'type', 'datetime'
-        )
-    ),
-    ARRAY['tickets.view'],
-    true
-);
-
--- Add sidebar navigation for My Team's Tickets
-INSERT INTO public.sidebar_navigation 
-(id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active) 
-VALUES
-(
-    '88888888-8888-8888-8888-222222222211',
-    'My Team''s Tickets',
-    'View tickets assigned to my teams',
-    '📋',
-    '22222222-2222-2222-2222-222222222222',  -- Parent is Tickets section
-    'aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11',
-    '/list',
-    17,  -- Between My Assigned (15) and Organization Tickets (20)
-    ARRAY['tickets.view'],
-    true
-);
-
--- Add Ticket Tags child search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-bbbb-cccc-dddd-333333333333',
-    'Ticket Tags',
-    'Manage ticket tags',
-    'ticket_tags',
-    'tickets',
-    'ticket_id',
-    jsonb_build_object(
-        'select', 'id, ticket_id, tag_id,
-        tag:tags!fk_ticket_tags_tag(id, name)'
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Tag',
-            'accessorKey', 'tag_id',
-            'aliasName', 'tag',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'tags',
-                'value', 'id',
-                'label', 'name'
-            ),
-            'required', true
-        )
-    ),
-    ARRAY['tickets.view'],
-    true
-);
-
--- Update Ticket Comments child search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-bbbb-cccc-dddd-444444444444',
-    'Ticket Comments',
-    'Manage ticket comments',
-    'ticket_comments',
-    'tickets',
-    'ticket_id',
-    jsonb_build_object(
-        'select', 'id, ticket_id, author_id, content, is_private, created_at,
-        author:users!fk_ticket_comments_author(id, full_name)',
-        'defaultValues', jsonb_build_object(
-            'author_id', 'auth.uid()'
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Content',
-            'accessorKey', 'content',
-            'type', 'textarea',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Internal Note',
-            'accessorKey', 'is_private',
-            'type', 'boolean'
-        )
-    ),
-    ARRAY['tickets.view.internal'],
-    true
-);
-
--- Update Customer Ticket Comments search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    parent_table,
-    parent_field,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-bbbb-cccc-dddd-444444444443',
-    'Customer Ticket Comments',
-    'Manage ticket comments',
-    'ticket_comments',
-    'tickets',
-    'ticket_id',
-    jsonb_build_object(
-        'select', 'id, ticket_id, author_id, content, created_at,
-        author:users!fk_ticket_comments_author(id, full_name)',
-        'defaultValues', jsonb_build_object(
-            'author_id', 'auth.uid()',
-            'is_private', 'false'
-        ),
-        'where', 'NOT is_private'  -- Only show non-private comments
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Content',
-            'accessorKey', 'content',
-            'type', 'textarea',
-            'required', true
-        )
-    ),
-    ARRAY['tickets.view'],
-    true
-);
-
--- Add Comment Templates Management search query
-INSERT INTO search_queries (
-    id,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'cccccccc-1111-2222-3333-444444444444',  -- Fixed UUID format
-    'Comment Templates',
-    'Manage comment templates',
-    'comment_templates',
-    jsonb_build_object(
-        'select', '*',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'category', 'desc', false),
-            jsonb_build_object('id', 'sort_order', 'desc', false)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Name',
-            'accessorKey', 'name',
-            'type', 'text',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Content',
-            'accessorKey', 'content',
-            'type', 'textarea',
-            'required', true
-        ),
-        jsonb_build_object(
-            'header', 'Category',
-            'accessorKey', 'category',
-            'type', 'text'
-        ),
-        jsonb_build_object(
-            'header', 'Private',
-            'accessorKey', 'is_private',
-            'type', 'boolean'
-        ),
-        jsonb_build_object(
-            'header', 'Sort Order',
-            'accessorKey', 'sort_order',
-            'type', 'number'
-        ),
-        jsonb_build_object(
-            'header', 'Active',
-            'accessorKey', 'is_active',
-            'type', 'boolean'
-        )
-    ),
-    ARRAY['admin.templates.manage'],
-    true
-);
-
--- Add to Admin navigation
-INSERT INTO sidebar_navigation 
-(id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active)
-VALUES (
-    'cccccccc-1111-2222-3333-555555555555',  -- Fixed UUID format
-    'Comment Templates',
-    'Manage comment templates',
-    '📝',
-    '99999999-9999-9999-9999-222222222222',  -- Admin section
-    'cccccccc-1111-2222-3333-444444444444',  -- Match search query ID
-    '/list',
-    60,
-    ARRAY['admin.templates.manage'],
-    true
-);
-
--- Add permission for template management
-INSERT INTO permissions (id, name, description)
-VALUES ('cccccccc-1111-2222-3333-666666666666', 'admin.templates.manage', 'Manage comment templates');  -- Fixed UUID format
-
--- Grant permission to admin role
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT 
-    r.id,
-    p.id
-FROM roles r
-CROSS JOIN permissions p
-WHERE r.name = 'admin'
-AND p.name = 'admin.templates.manage';
-
--- Add relationships between search queries
-INSERT INTO search_query_relationships (parent_search_query_id, child_search_query_id) VALUES 
--- Teams and its child queries
-('eeeeeeee-eeee-eeee-eeee-111111111111', 'eeeeeeee-eeee-eeee-eeee-222222222222'),  -- Team Members
-('eeeeeeee-eeee-eeee-eeee-111111111111', 'eeeeeeee-eeee-eeee-eeee-333333333333'),  -- Team Tags
-('eeeeeeee-eeee-eeee-eeee-111111111111', 'eeeeeeee-eeee-eeee-eeee-444444444444'),  -- Team Schedules
-
--- Roles and its child queries
-('aaaaaaaa-bbbb-cccc-dddd-111111111111', 'aaaaaaaa-bbbb-cccc-dddd-222222222222'),  -- Role Permissions
-
--- My Submitted Tickets
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'aaaaaaaa-bbbb-cccc-dddd-444444444444'),
-
--- My Submitted Tickets (Customer)
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-444444444443'),
-
--- Organization Tickets
-('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aaaaaaaa-bbbb-cccc-dddd-444444444444'),
-
--- Organization Tickets (Customer)
-('cccccccc-cccc-cccc-cccc-cccccccccc11', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('cccccccc-cccc-cccc-cccc-cccccccccc11', 'aaaaaaaa-bbbb-cccc-dddd-444444444443'),
-
--- All Tickets
-('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('dddddddd-dddd-dddd-dddd-dddddddddddd', 'aaaaaaaa-bbbb-cccc-dddd-444444444444'),
-
--- My Assigned Tickets
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-bbbb-cccc-dddd-444444444444'),
-
--- My Team's Tickets
-('aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-333333333333'),
-('aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbb11', 'aaaaaaaa-bbbb-cccc-dddd-444444444444'),
-
--- IntelliSUppot comment template
-('aaaaaaaa-bbbb-cccc-dddd-444444444444', 'cccccccc-1111-2222-3333-444444444444');
-
--- Update Navigation Management search query
-UPDATE search_queries 
-SET query_definition = jsonb_build_object(
-    'select', '*, 
-    search_query:search_queries!fk_sidebar_navigation_search_query(id, name)',
-    'orderBy', jsonb_build_array(
-        jsonb_build_object('id', 'sort_order', 'desc', false)
-    )
-)
-WHERE id = 'ffffffff-eeee-dddd-cccc-111111111111';
 
 -- Add initial comment templates
 INSERT INTO comment_templates (
@@ -2230,77 +197,985 @@ INSERT INTO comment_templates (
     true
 );
 
--- Add Knowledge Domain Management permission
-INSERT INTO permissions (id, name, description)
-VALUES ('11111111-1111-cccc-1111-111111111111', 'admin.knowledge.manage', 'Can view and manage knowledge domains');
+-- Knowledge Domains (updated with unique names)
+INSERT INTO knowledge_domain (name, description) VALUES
+('Advanced Troubleshooting', 'Complex technical issue resolution'),
+('Customer Success', 'Customer satisfaction and retention'),
+('Platform Architecture', 'System architecture and design'),
+('Data Privacy', 'Privacy and data protection'),
+('API Development', 'API design and implementation'),
+('System Optimization', 'Performance tuning and optimization');
 
--- Add permission to admin role
-INSERT INTO role_permissions (role_id, permission_id)
-VALUES ('11111111-1111-1111-1111-111111111112', '11111111-1111-cccc-1111-111111111111');
+-- Tags (with conflict handling)
+INSERT INTO tags (name) VALUES
+('urgent'),
+('bug'),
+('feature-request'),
+('billing'),
+('security'),
+('performance'),
+('integration'),
+('documentation'),
+('user-access'),
+('configuration')
+ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO search_queries (
-    id,
-    parent_table,
-    parent_field,
-    name,
-    description,
-    base_table,
-    query_definition,
-    column_definitions,
-    permissions_required,
-    is_active
-) VALUES (
-    'aaaaaaaa-0000-4000-a000-000000000004',
-    'users',
-    'user_id',
-    'User Knowledge Domains',
-    'Manage user knowledge domains and expertise levels',
-    'user_knowledge_domain',
-    jsonb_build_object(
-        'select', '*, 
-        user_domain:knowledge_domain!fk_user_knowledge_domain_knowledge(id, name)',
-        'orderBy', jsonb_build_array(
-            jsonb_build_object('id', 'expertise', 'desc', true)
-        )
-    ),
-    jsonb_build_array(
-        jsonb_build_object(
-            'header', 'Knowledge Domain',
-            'accessorKey', 'knowledge_domain_id',
-            'aliasName', 'user_domain',
-            'type', 'uuid',
-            'foreignKey', jsonb_build_object(
-                'table', 'knowledge_domain',
-                'value', 'id',
-                'label', 'name'
-            )
-        ),  -- Added missing closing parenthesis here
-        jsonb_build_object(
-            'header', 'Expertise',
-            'accessorKey', 'expertise',
-            'type', 'select',
-            'options', jsonb_build_array('beginner', 'intermediate', 'expert')
-        ),
-        jsonb_build_object(
-            'header', 'Years Experience',
-            'accessorKey', 'years_experience',
-            'type', 'number'
-        ),
-        jsonb_build_object(
-            'header', 'Description',
-            'accessorKey', 'description',
-            'type', 'textarea'
-        ),
-        jsonb_build_object(
-            'header', 'Credentials',
-            'accessorKey', 'credential',
-            'type', 'text'
-        )
-    ),
-    ARRAY['admin.users.manage'],
-    true
+-- Teams
+INSERT INTO teams (name, description) VALUES
+('Technical Team', 'Handle technical issues'),
+('Account Team', 'Handle account and billing'),
+('Security Team', 'Handle security issues');
+
+-- Team Members and Schedules
+INSERT INTO team_members (team_id, user_id, role) 
+SELECT t.id, u.id, 'lead'
+FROM teams t, auth.users u 
+WHERE t.name = 'Technical Team' AND u.email = 'admin1@support.com';
+
+INSERT INTO team_members (team_id, user_id, role)
+SELECT t.id, u.id, 'member'
+FROM teams t, auth.users u
+WHERE t.name = 'Technical Team' AND u.email IN ('agent1@support.com', 'agent2@support.com');
+
+INSERT INTO team_members (team_id, user_id, role)
+SELECT t.id, u.id, 'lead'
+FROM teams t, auth.users u
+WHERE t.name = 'Account Team' AND u.email = 'admin2@support.com';
+
+INSERT INTO team_members (team_id, user_id, role)
+SELECT t.id, u.id, 'member'
+FROM teams t, auth.users u
+WHERE t.name = 'Account Team' AND u.email = 'agent3@support.com';
+
+-- Team Member Schedules (UTC times)
+-- Technical Team - Early Shift
+INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
+SELECT 
+    t.id,
+    u.id,
+    NOW()::date + '08:00'::time,  -- Today at 8 AM
+    NOW()::date + '16:00'::time   -- Today at 4 PM
+FROM teams t, auth.users u
+WHERE t.name = 'Technical Team' 
+AND u.email = 'agent1@support.com';
+
+-- Technical Team - Mid Shift
+INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
+SELECT 
+    t.id,
+    u.id,
+    NOW()::date + '10:00'::time,  -- Today at 10 AM
+    NOW()::date + '18:00'::time   -- Today at 6 PM
+FROM teams t, auth.users u
+WHERE t.name = 'Technical Team' 
+AND u.email = 'agent2@support.com';
+
+-- Account Team - Late Shift
+INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
+SELECT 
+    t.id,
+    u.id,
+    NOW()::date + '12:00'::time,  -- Today at 12 PM
+    NOW()::date + '20:00'::time   -- Today at 8 PM
+FROM teams t, auth.users u
+WHERE t.name = 'Account Team' 
+AND u.email = 'agent3@support.com';
+
+-- Admin Flexible Hours
+INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
+SELECT 
+    t.id,
+    u.id,
+    NOW()::date + '09:00'::time,  -- Today at 9 AM
+    NOW()::date + '17:00'::time   -- Today at 5 PM
+FROM teams t, auth.users u
+WHERE t.name IN ('Technical Team', 'Account Team')
+AND u.email LIKE 'admin%';
+
+-- Team Tags
+INSERT INTO team_tags (team_id, tag_id)
+SELECT t.id, tag.id
+FROM teams t, tags tag
+WHERE t.name = 'Technical Team' 
+AND tag.name IN ('bug', 'performance', 'integration', 'configuration');
+
+INSERT INTO team_tags (team_id, tag_id)
+SELECT t.id, tag.id
+FROM teams t, tags tag
+WHERE t.name = 'Account Team' 
+AND tag.name IN ('billing', 'user-access');
+
+INSERT INTO team_tags (team_id, tag_id)
+SELECT t.id, tag.id
+FROM teams t, tags tag
+WHERE t.name = 'Security Team' 
+AND tag.name IN ('security', 'user-access');
+
+-- Knowledge Domain Assignments for Agents and Admins
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'expert', 5
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'agent1@support.com' 
+AND kd.name IN ('Advanced Troubleshooting', 'API Development', 'System Optimization');
+
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'intermediate', 3
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'agent2@support.com'
+AND kd.name IN ('Platform Architecture', 'Advanced Troubleshooting');
+
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'expert', 4
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'agent3@support.com'
+AND kd.name IN ('Customer Success', 'Data Privacy');
+
+-- Tickets and Comments
+INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
+SELECT 
+    'Performance Issue with Dashboard',
+    'The dashboard is loading very slowly, taking more than 30 seconds to display data.',
+    'open',
+    'high',
+    u.id,
+    o.id
+FROM auth.users u, organizations o
+WHERE u.email = 'customer1@techcorp.com' AND o.name = 'TechCorp';
+
+INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
+SELECT 
+    'Cannot Access Admin Panel',
+    'Getting "Access Denied" error when trying to access the admin panel.',
+    'open',
+    'medium',
+    u.id,
+    o.id
+FROM auth.users u, organizations o
+WHERE u.email = 'customer2@healthnet.org' AND o.name = 'HealthNet';
+
+-- Add tags to tickets
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Performance Issue with Dashboard'
+AND tag.name IN ('performance', 'bug');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Cannot Access Admin Panel'
+AND tag.name IN ('user-access', 'security');
+
+-- Add comments to tickets
+INSERT INTO ticket_comments (ticket_id, content, author_id)
+SELECT 
+    t.id,
+    'Have you cleared your browser cache and tried again?',
+    u.id
+FROM tickets t, auth.users u
+WHERE t.subject = 'Performance Issue with Dashboard'
+AND u.email = 'agent1@support.com';
+
+-- Agent Styles
+INSERT INTO agent_style (agent_id, style_name, style_description, tone_preferences, language_patterns, effectiveness_metrics)
+SELECT 
+    u.id,
+    'Technical Expert',
+    'Detailed technical explanations with clear steps',
+    '{"formality": "high", "empathy": "medium", "detail": "high"}'::jsonb,
+    ARRAY['I understand the technical challenge', 'Let me explain step by step', 'Here''s what''s happening technically'],
+    '{"resolution_rate": 0.92, "satisfaction_score": 4.5}'::jsonb
+FROM auth.users u
+WHERE u.email = 'agent1@support.com';
+
+INSERT INTO agent_style (agent_id, style_name, style_description, tone_preferences, language_patterns, effectiveness_metrics)
+SELECT 
+    u.id,
+    'Customer Focused',
+    'Empathetic and solution-oriented approach',
+    '{"formality": "medium", "empathy": "high", "detail": "medium"}'::jsonb,
+    ARRAY['I''m here to help', 'I understand your concern', 'Let''s solve this together'],
+    '{"resolution_rate": 0.88, "satisfaction_score": 4.8}'::jsonb
+FROM auth.users u
+WHERE u.email = 'agent2@support.com';
+
+-- More Tickets and Comments
+INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
+SELECT 
+    'Integration with CRM Failed',
+    'The automated sync with our CRM system stopped working after the latest update.',
+    'open',
+    'high',
+    u.id,
+    o.id
+FROM auth.users u, organizations o
+WHERE u.email = 'customer1@techcorp.com' AND o.name = 'TechCorp';
+
+INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
+SELECT 
+    'Need Additional User Licenses',
+    'We need to purchase licenses for 5 new team members.',
+    'open',
+    'low',
+    u.id,
+    o.id
+FROM auth.users u, organizations o
+WHERE u.email = 'customer2@healthnet.org' AND o.name = 'HealthNet';
+
+INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
+SELECT 
+    'Security Vulnerability Report',
+    'Found potential XSS vulnerability in the comments section.',
+    'open',
+    'critical',
+    u.id,
+    o.id
+FROM auth.users u, organizations o
+WHERE u.email = 'customer3@edulearn.edu' AND o.name = 'EduLearn';
+
+-- Add tags to new tickets
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Integration with CRM Failed'
+AND tag.name IN ('integration', 'bug', 'urgent');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Need Additional User Licenses'
+AND tag.name IN ('billing', 'user-access');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Security Vulnerability Report'
+AND tag.name IN ('security', 'urgent', 'bug');
+
+-- Add more comments
+INSERT INTO ticket_comments (ticket_id, content, author_id)
+SELECT 
+    t.id,
+    'Could you provide the error logs from the integration attempt?',
+    u.id
+FROM tickets t, auth.users u
+WHERE t.subject = 'Integration with CRM Failed'
+AND u.email = 'agent2@support.com';
+
+INSERT INTO ticket_comments (ticket_id, content, author_id)
+SELECT 
+    t.id,
+    'I''ll prepare a quote for the additional licenses right away.',
+    u.id
+FROM tickets t, auth.users u
+WHERE t.subject = 'Need Additional User Licenses'
+AND u.email = 'agent3@support.com';
+
+-- Message Templates
+INSERT INTO message_templates (template_text, context_type, effectiveness_score) VALUES
+('I understand you''re experiencing {issue_type}. Let me help you resolve this step by step.', 
+ 'initial_response', 
+ 0.85),
+('I''ve reviewed your {issue_type} and I''ll need some additional information to better assist you: {required_info}', 
+ 'information_request', 
+ 0.78),
+('Thank you for providing those details. I''ve identified the root cause: {cause}. Here''s how we can fix it: {solution}', 
+ 'solution_proposal', 
+ 0.92),
+('Just following up on your {issue_type} ticket. Have you had a chance to try the solution I proposed?', 
+ 'follow_up', 
+ 0.75);
+
+-- Customer Preferences
+INSERT INTO customer_preferences (customer_id, preferred_style, preferred_times, communication_frequency)
+SELECT 
+    u.id,
+    'technical',
+    '{"preferred_hours": ["9:00", "17:00"], "timezone": "UTC"}'::jsonb,
+    'daily'
+FROM auth.users u
+WHERE u.email = 'customer1@techcorp.com';
+
+INSERT INTO customer_preferences (customer_id, preferred_style, preferred_times, communication_frequency)
+SELECT 
+    u.id,
+    'simplified',
+    '{"preferred_hours": ["13:00", "20:00"], "timezone": "UTC+1"}'::jsonb,
+    'weekly'
+FROM auth.users u
+WHERE u.email = 'customer2@healthnet.org';
+
+-- Add one more agent style
+INSERT INTO agent_style (agent_id, style_name, style_description, tone_preferences, language_patterns, effectiveness_metrics)
+SELECT 
+    u.id,
+    'Security Specialist',
+    'Security-focused communication with clear compliance considerations',
+    '{"formality": "high", "empathy": "medium", "detail": "very_high", "compliance_focus": "high"}'::jsonb,
+    ARRAY['Let me address your security concern', 'Following security best practices', 'To ensure compliance'],
+    '{"resolution_rate": 0.95, "satisfaction_score": 4.6, "compliance_score": 0.99}'::jsonb
+FROM auth.users u
+WHERE u.email = 'agent3@support.com';
+
+-- Add more varied tickets
+INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
+VALUES
+-- TechCorp Tickets
+(
+    'API Rate Limiting Issues',
+    'We''re hitting API rate limits during peak hours, causing service disruptions.',
+    'open',
+    'high',
+    (SELECT id FROM auth.users WHERE email = 'customer1@techcorp.com'),
+    (SELECT id FROM organizations WHERE name = 'TechCorp')
+),
+(
+    'Feature Request: Batch Processing',
+    'Would like to add batch processing capability to reduce API calls.',
+    'open',
+    'medium',
+    (SELECT id FROM auth.users WHERE email = 'customer1@techcorp.com'),
+    (SELECT id FROM organizations WHERE name = 'TechCorp')
+),
+
+-- HealthNet Tickets
+(
+    'Data Export Failing',
+    'Weekly data export job has been failing for the last 2 runs.',
+    'pending',
+    'high',
+    (SELECT id FROM auth.users WHERE email = 'customer2@healthnet.org'),
+    (SELECT id FROM organizations WHERE name = 'HealthNet')
+),
+(
+    'SSO Integration Not Working',
+    'Users unable to login through SSO since latest update.',
+    'open',
+    'urgent',
+    (SELECT id FROM auth.users WHERE email = 'customer2@healthnet.org'),
+    (SELECT id FROM organizations WHERE name = 'HealthNet')
+),
+
+-- EduLearn Tickets
+(
+    'Performance Degradation in Search',
+    'Search functionality taking >10s to return results.',
+    'open',
+    'high',
+    (SELECT id FROM auth.users WHERE email = 'customer3@edulearn.edu'),
+    (SELECT id FROM organizations WHERE name = 'EduLearn')
 );
 
--- Add search query relationship
-INSERT INTO search_query_relationships (parent_search_query_id, child_search_query_id)
-VALUES ('aaaaaaaa-0000-4000-a000-000000000002', 'aaaaaaaa-0000-4000-a000-000000000004')
+-- Add tags to new tickets
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'API Rate Limiting Issues'
+AND tag.name IN ('performance', 'configuration', 'integration');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Feature Request: Batch Processing'
+AND tag.name IN ('feature-request', 'integration');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Data Export Failing'
+AND tag.name IN ('bug', 'integration');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'SSO Integration Not Working'
+AND tag.name IN ('security', 'urgent', 'integration');
+
+INSERT INTO ticket_tags (ticket_id, tag_id)
+SELECT t.id, tag.id
+FROM tickets t, tags tag
+WHERE t.subject = 'Performance Degradation in Search'
+AND tag.name IN ('performance', 'urgent');
+
+-- Add comments to new tickets
+INSERT INTO ticket_comments (ticket_id, content, author_id, is_private)
+SELECT 
+    t.id,
+    'I''ve checked the API logs and noticed spikes around 2PM UTC. Let''s implement rate limiting on your end first.',
+    (SELECT id FROM auth.users WHERE email = 'agent1@support.com'),
+    false
+FROM tickets t
+WHERE t.subject = 'API Rate Limiting Issues';
+
+INSERT INTO ticket_comments (ticket_id, content, author_id, is_private)
+SELECT 
+    t.id,
+    'Internal Note: Need to escalate this to the platform team for rate limit adjustment.',
+    (SELECT id FROM auth.users WHERE email = 'agent1@support.com'),
+    true
+FROM tickets t
+WHERE t.subject = 'API Rate Limiting Issues';
+
+INSERT INTO ticket_comments (ticket_id, content, author_id, is_private)
+SELECT 
+    t.id,
+    'This is a great suggestion. I''ve created a feature request ticket with our development team.',
+    (SELECT id FROM auth.users WHERE email = 'agent2@support.com'),
+    false
+FROM tickets t
+WHERE t.subject = 'Feature Request: Batch Processing';
+
+INSERT INTO ticket_comments (ticket_id, content, author_id, is_private)
+SELECT 
+    t.id,
+    'Investigating the SSO logs now. Can you confirm if this affects all users or specific roles?',
+    (SELECT id FROM auth.users WHERE email = 'agent3@support.com'),
+    false
+FROM tickets t
+WHERE t.subject = 'SSO Integration Not Working';
+
+-- Add ticket routing history
+INSERT INTO ticket_routing_history (ticket_id, assigned_to, confidence_score, routing_factors, was_reassigned)
+SELECT 
+    t.id,
+    (SELECT id FROM auth.users WHERE email = 'agent1@support.com'),
+    0.92,
+    '{"tags": ["performance", "configuration"], "priority": "high", "agent_expertise": ["System Optimization"]}'::jsonb,
+    false
+FROM tickets t
+WHERE t.subject = 'API Rate Limiting Issues';
+
+INSERT INTO ticket_routing_history (ticket_id, assigned_to, confidence_score, routing_factors, was_reassigned)
+SELECT 
+    t.id,
+    (SELECT id FROM auth.users WHERE email = 'agent3@support.com'),
+    0.88,
+    '{"tags": ["security"], "priority": "urgent", "agent_expertise": ["Security"]}'::jsonb,
+    false
+FROM tickets t
+WHERE t.subject = 'SSO Integration Not Working';
+
+-- Additional Agent Styles
+INSERT INTO agent_style (agent_id, style_name, style_description, tone_preferences, language_patterns, effectiveness_metrics)
+SELECT 
+    u.id,
+    'Efficiency Expert',
+    'Quick, precise solutions with minimal back-and-forth',
+    '{"formality": "medium", "empathy": "low", "detail": "high", "efficiency": "very_high"}'::jsonb,
+    ARRAY['Let''s solve this quickly', 'Here''s what you need to do', 'The fastest solution is'],
+    '{"resolution_rate": 0.94, "satisfaction_score": 4.2, "avg_resolution_time": "45m"}'::jsonb
+FROM auth.users u
+WHERE u.email = 'agent2@support.com';
+
+INSERT INTO agent_style (agent_id, style_name, style_description, tone_preferences, language_patterns, effectiveness_metrics)
+SELECT 
+    u.id,
+    'Educational Approach',
+    'Teaches while solving to prevent future issues',
+    '{"formality": "medium", "empathy": "high", "detail": "very_high", "educational": "high"}'::jsonb,
+    ARRAY['Let me explain why this happens', 'This will help prevent future issues', 'Here''s how this works'],
+    '{"resolution_rate": 0.89, "satisfaction_score": 4.7, "knowledge_transfer": 0.92}'::jsonb
+FROM auth.users u
+WHERE u.email = 'agent1@support.com';
+
+-- Additional Customer Preferences
+INSERT INTO customer_preferences (customer_id, preferred_style, preferred_times, communication_frequency)
+SELECT 
+    u.id,
+    'detailed',
+    '{"preferred_hours": ["14:00", "22:00"], "timezone": "UTC+2", "preferred_days": ["Monday", "Wednesday", "Friday"]}'::jsonb,
+    'twice_weekly'
+FROM auth.users u
+WHERE u.email = 'customer3@techcorp.com';
+
+INSERT INTO customer_preferences (customer_id, preferred_style, preferred_times, communication_frequency)
+SELECT 
+    u.id,
+    'brief',
+    '{"preferred_hours": ["8:00", "16:00"], "timezone": "UTC-5", "preferred_days": ["Tuesday", "Thursday"]}'::jsonb,
+    'urgent_only'
+FROM auth.users u
+WHERE u.email = 'customer4@healthnet.org';
+
+-- Additional Message Templates
+INSERT INTO message_templates (template_text, context_type, effectiveness_score) VALUES
+('Our team has identified a potential security concern: {issue}. Please review and implement the following recommendations: {recommendations}',
+ 'security_alert',
+ 0.95),
+('Your feature request has been reviewed. Here''s our assessment: {assessment}. Timeline for implementation: {timeline}',
+ 'feature_response',
+ 0.88),
+('We''ve noticed some unusual patterns in your usage: {patterns}. To optimize performance, we recommend: {recommendations}',
+ 'optimization_suggestion',
+ 0.82),
+('Regular maintenance is scheduled for {date} from {start_time} to {end_time}. Impact: {impact}. Preparation steps: {steps}',
+ 'maintenance_notice',
+ 0.91);
+
+-- Additional Message Templates for Sales/Marketing
+INSERT INTO message_templates (template_text, context_type, effectiveness_score) VALUES
+('Based on your usage patterns, our {widget_name} widget could help improve your workflow by {benefit}. Would you like to schedule a demo?',
+ 'upsell_opportunity',
+ 0.86),
+('We noticed you''re using {current_feature}. Our new {widget_name} widget integrates seamlessly and adds {new_capability}.',
+ 'cross_sell',
+ 0.83),
+('Thanks for your interest in {widget_name}! Here''s a quick overview of how it could benefit your team: {benefits}',
+ 'product_introduction',
+ 0.89),
+('Early access to our new {widget_name} widget is now available. As a valued customer, you''re invited to try it first: {preview_link}',
+ 'early_access_invite',
+ 0.92),
+('Your feedback on {widget_name} has been invaluable. We''ve just released these improvements you requested: {updates}',
+ 'product_update',
+ 0.94);
+
+
+-- Customer Preferences for new customers
+INSERT INTO customer_preferences (customer_id, preferred_style, preferred_times, communication_frequency)
+VALUES
+-- Emma (EduLearn)
+(
+    (SELECT id FROM auth.users WHERE email = 'emma.edu@edulearn.edu'),
+    'simplified',
+    '{"preferred_hours": ["8:00", "16:00"], "timezone": "UTC-5", "preferred_days": ["Monday", "Wednesday", "Friday"]}'::jsonb,
+    'weekly'
+),
+-- Robert (RetailPro)
+(
+    (SELECT id FROM auth.users WHERE email = 'robert.retail@retailpro.com'),
+    'technical',
+    '{"preferred_hours": ["9:00", "18:00"], "timezone": "UTC-4", "preferred_days": ["Tuesday", "Thursday"]}'::jsonb,
+    'daily'
+),
+-- David (TechCorp)
+(
+    (SELECT id FROM auth.users WHERE email = 'david.dev@techcorp.com'),
+    'detailed',
+    '{"preferred_hours": ["11:00", "20:00"], "timezone": "UTC-7", "preferred_days": ["Monday", "Tuesday", "Thursday"]}'::jsonb,
+    'daily'
+);
+
+-- Continue with similar patterns for customers 10-14...
+
+-- Create public.users entries for customers 10-14
+
+-- Customer Preferences for customers 10-14
+INSERT INTO customer_preferences (customer_id, preferred_style, preferred_times, communication_frequency)
+VALUES
+-- Maria (HealthNet)
+(
+    (SELECT id FROM auth.users WHERE email = 'maria.med@healthnet.org'),
+    'detailed',
+    '{"preferred_hours": ["7:00", "15:00"], "timezone": "UTC-5", "preferred_days": ["Monday", "Tuesday", "Wednesday"]}'::jsonb,
+    'daily'
+),
+-- Peter (EduLearn)
+(
+    (SELECT id FROM auth.users WHERE email = 'peter.prof@edulearn.edu'),
+    'technical',
+    '{"preferred_hours": ["13:00", "21:00"], "timezone": "UTC-6", "preferred_days": ["Tuesday", "Thursday", "Friday"]}'::jsonb,
+    'twice_weekly'
+),
+-- Lisa (RetailPro)
+(
+    (SELECT id FROM auth.users WHERE email = 'lisa.store@retailpro.com'),
+    'simplified',
+    '{"preferred_hours": ["8:00", "17:00"], "timezone": "UTC-7", "preferred_days": ["Monday", "Wednesday", "Friday"]}'::jsonb,
+    'weekly'
+),
+-- Mike (TechCorp)
+(
+    (SELECT id FROM auth.users WHERE email = 'mike.sys@techcorp.com'),
+    'technical',
+    '{"preferred_hours": ["10:00", "19:00"], "timezone": "UTC-8", "preferred_days": ["Tuesday", "Thursday"]}'::jsonb,
+    'daily'
+),
+-- Rachel (HealthNet)
+(
+    (SELECT id FROM auth.users WHERE email = 'rachel.health@healthnet.org'),
+    'detailed',
+    '{"preferred_hours": ["9:00", "18:00"], "timezone": "UTC-5", "preferred_days": ["Monday", "Wednesday", "Friday"]}'::jsonb,
+    'urgent_only'
+);
+
+-- Communication History
+INSERT INTO communication_history (customer_id, message_text, template_id, sent_at, response_received_at, effectiveness_metrics)
+SELECT 
+    (SELECT id FROM auth.users WHERE email = 'customer1@techcorp.com'),
+    'I understand you''re experiencing performance issues with the dashboard. Let me help you resolve this step by step.',
+    mt.id,
+    NOW() - INTERVAL '2 days',
+    NOW() - INTERVAL '1 day',
+    '{"response_time_minutes": 45, "resolution_achieved": true, "customer_satisfaction": 4}'::jsonb
+FROM tickets t, message_templates mt
+WHERE t.subject = 'Performance Issue with Dashboard'
+AND mt.context_type = 'initial_response';
+
+-- Additional Communication History
+INSERT INTO communication_history (customer_id, message_text, template_id, sent_at, response_received_at, effectiveness_metrics)
+SELECT 
+    (SELECT id FROM auth.users WHERE email = 'customer2@healthnet.org'),
+    'We''ve identified the root cause of the performance issue. It appears to be related to the recent database optimization.',
+    mt.id,
+    NOW() - INTERVAL '3 days',
+    NOW() - INTERVAL '2 days 23 hours',
+    '{"response_time_minutes": 15, "resolution_achieved": true, "customer_satisfaction": 5, "solution_implemented": true}'::jsonb
+FROM tickets t, message_templates mt
+WHERE t.subject = 'Performance Degradation in Search'
+AND mt.context_type = 'solution_proposal';
+
+-- Continue with all existing queries, just adding customer_id...
+INSERT INTO communication_history (customer_id, message_text, template_id, sent_at, response_received_at, effectiveness_metrics)
+SELECT 
+    (SELECT id FROM auth.users WHERE email = 'customer2@healthnet.org'),
+    'Your SSO integration issue has been escalated to our security team. They''re investigating the root cause.',
+    mt.id,
+    NOW() - INTERVAL '1 day',
+    NOW() - INTERVAL '23 hours',
+    '{"response_time_minutes": 30, "resolution_achieved": false, "escalation_needed": true}'::jsonb
+FROM tickets t, message_templates mt
+WHERE t.subject = 'SSO Integration Not Working'
+AND mt.context_type = 'initial_response';
+
+-- Keep all other existing queries, just adding customer_id to each...
+
+-- Additional Communication History entries
+INSERT INTO communication_history (customer_id, message_text, template_id, sent_at, response_received_at, effectiveness_metrics)
+VALUES
+-- Maria's communications
+(
+    (SELECT id FROM auth.users WHERE email = 'maria.med@healthnet.org'),
+    'Based on your usage patterns, our Healthcare Analytics Widget could improve patient data processing by 40%.',
+    (SELECT id FROM message_templates WHERE context_type = 'upsell_opportunity'),
+    NOW() - INTERVAL '8 days',
+    NOW() - INTERVAL '7 days 23 hours',
+    '{"response_time_minutes": 35, "interest_level": "high", "demo_scheduled": true, "potential_value": 12000}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'maria.med@healthnet.org'),
+    'The new HIPAA compliance features in our Security Widget would streamline your audit processes.',
+    (SELECT id FROM message_templates WHERE context_type = 'product_introduction'),
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '5 days 22 hours',
+    '{"response_time_minutes": 42, "compliance_interest": true, "follow_up_scheduled": true}'::jsonb
+),
+
+-- Peter's communications
+(
+    (SELECT id FROM auth.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Our new Education Analytics Dashboard shows promising results for student engagement tracking.',
+    (SELECT id FROM message_templates WHERE context_type = 'product_update'),
+    NOW() - INTERVAL '7 days',
+    NOW() - INTERVAL '6 days 23 hours',
+    '{"response_time_minutes": 28, "feature_adoption": true, "satisfaction_score": 4.8}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Would you like early access to our new Curriculum Planning Widget? It integrates with your existing workflows.',
+    (SELECT id FROM message_templates WHERE context_type = 'early_access_invite'),
+    NOW() - INTERVAL '5 days',
+    NOW() - INTERVAL '4 days 22 hours',
+    '{"response_time_minutes": 45, "early_access_accepted": true}'::jsonb
+),
+
+-- Lisa's communications
+(
+    (SELECT id FROM auth.users WHERE email = 'lisa.store@retailpro.com'),
+    'The Inventory Optimization Widget could help prevent the stockout issues you mentioned.',
+    (SELECT id FROM message_templates WHERE context_type = 'solution_proposal'),
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '5 days 23 hours',
+    '{"response_time_minutes": 32, "solution_implemented": true, "roi_projected": 15000}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'lisa.store@retailpro.com'),
+    'Our new POS Integration Widget supports real-time inventory updates across all channels.',
+    (SELECT id FROM message_templates WHERE context_type = 'cross_sell'),
+    NOW() - INTERVAL '4 days',
+    NOW() - INTERVAL '3 days 22 hours',
+    '{"response_time_minutes": 38, "integration_interest": true}'::jsonb
+),
+
+-- Mike's communications
+(
+    (SELECT id FROM auth.users WHERE email = 'mike.sys@techcorp.com'),
+    'The System Performance Widget has identified several optimization opportunities in your infrastructure.',
+    (SELECT id FROM message_templates WHERE context_type = 'optimization_suggestion'),
+    NOW() - INTERVAL '5 days',
+    NOW() - INTERVAL '4 days 23 hours',
+    '{"response_time_minutes": 25, "optimization_implemented": true, "performance_improvement": "35%"}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'mike.sys@techcorp.com'),
+    'Would you like to beta test our new Cloud Resource Optimization Widget?',
+    (SELECT id FROM message_templates WHERE context_type = 'early_access_invite'),
+    NOW() - INTERVAL '3 days',
+    NOW() - INTERVAL '2 days 22 hours',
+    '{"response_time_minutes": 40, "beta_participation": true}'::jsonb
+),
+
+-- Rachel's communications
+(
+    (SELECT id FROM auth.users WHERE email = 'rachel.health@healthnet.org'),
+    'Our Patient Data Analytics Widget could help streamline your reporting processes.',
+    (SELECT id FROM message_templates WHERE context_type = 'product_introduction'),
+    NOW() - INTERVAL '4 days',
+    NOW() - INTERVAL '3 days 23 hours',
+    '{"response_time_minutes": 30, "demo_scheduled": true, "potential_value": 18000}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'rachel.health@healthnet.org'),
+    'The latest security updates include enhanced PHI protection features you requested.',
+    (SELECT id FROM message_templates WHERE context_type = 'product_update'),
+    NOW() - INTERVAL '2 days',
+    NOW() - INTERVAL '1 day 23 hours',
+    '{"response_time_minutes": 35, "feature_activated": true, "compliance_score": 0.98}'::jsonb
+),
+
+-- Additional communications for existing customers
+(
+    (SELECT id FROM auth.users WHERE email = 'sarah.tech@techcorp.com'),
+    'The new API Management Widget includes the batch processing feature you requested.',
+    (SELECT id FROM message_templates WHERE context_type = 'feature_response'),
+    NOW() - INTERVAL '3 days',
+    NOW() - INTERVAL '2 days 23 hours',
+    '{"response_time_minutes": 28, "feature_satisfaction": 4.9, "implementation_started": true}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'sarah.tech@techcorp.com'),
+    'Would you like to schedule a technical review of the new rate limiting features?',
+    (SELECT id FROM message_templates WHERE context_type = 'follow_up'),
+    NOW() - INTERVAL '1 day',
+    NOW() - INTERVAL '22 hours',
+    '{"response_time_minutes": 42, "technical_review_scheduled": true}'::jsonb
+),
+
+-- Emma's additional communications
+(
+    (SELECT id FROM auth.users WHERE email = 'emma.edu@edulearn.edu'),
+    'The Learning Analytics Widget shows a 25% improvement in student engagement metrics.',
+    (SELECT id FROM message_templates WHERE context_type = 'optimization_suggestion'),
+    NOW() - INTERVAL '4 days',
+    NOW() - INTERVAL '3 days 23 hours',
+    '{"response_time_minutes": 33, "insights_implemented": true, "impact_score": 4.7}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'emma.edu@edulearn.edu'),
+    'Our new Curriculum Integration Widget could streamline your content delivery process.',
+    (SELECT id FROM message_templates WHERE context_type = 'cross_sell'),
+    NOW() - INTERVAL '2 days',
+    NOW() - INTERVAL '1 day 22 hours',
+    '{"response_time_minutes": 38, "demo_requested": true, "potential_value": 9000}'::jsonb
+),
+
+-- Robert's additional communications
+(
+    (SELECT id FROM auth.users WHERE email = 'robert.retail@retailpro.com'),
+    'The latest Retail Analytics Dashboard shows potential revenue opportunities in your evening shifts.',
+    (SELECT id FROM message_templates WHERE context_type = 'optimization_suggestion'),
+    NOW() - INTERVAL '5 days',
+    NOW() - INTERVAL '4 days 23 hours',
+    '{"response_time_minutes": 29, "analysis_reviewed": true, "projected_impact": 25000}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'robert.retail@retailpro.com'),
+    'Would you like to explore our new Inventory Forecasting Widget? It integrates with your existing POS.',
+    (SELECT id FROM message_templates WHERE context_type = 'product_introduction'),
+    NOW() - INTERVAL '3 days',
+    NOW() - INTERVAL '2 days 22 hours',
+    '{"response_time_minutes": 36, "demo_scheduled": true, "potential_value": 15000}'::jsonb
+),
+
+-- David's additional communications
+(
+    (SELECT id FROM auth.users WHERE email = 'david.dev@techcorp.com'),
+    'Our new Development Analytics Widget identified several optimization opportunities in your CI/CD pipeline.',
+    (SELECT id FROM message_templates WHERE context_type = 'optimization_suggestion'),
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '5 days 23 hours',
+    '{"response_time_minutes": 31, "optimization_implemented": true, "efficiency_gain": "28%"}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'david.dev@techcorp.com'),
+    'The Code Quality Widget integration is showing positive results. Would you like to review the metrics?',
+    (SELECT id FROM message_templates WHERE context_type = 'follow_up'),
+    NOW() - INTERVAL '4 days',
+    NOW() - INTERVAL '3 days 23 hours',
+    '{"response_time_minutes": 27, "review_scheduled": true, "quality_improvement": "15%"}'::jsonb
+),
+
+-- James's additional communications
+(
+    (SELECT id FROM auth.users WHERE email = 'james.health@healthnet.org'),
+    'The Health Analytics Widget suggests optimizing your patient scheduling workflow.',
+    (SELECT id FROM message_templates WHERE context_type = 'optimization_suggestion'),
+    NOW() - INTERVAL '7 days',
+    NOW() - INTERVAL '6 days 23 hours',
+    '{"response_time_minutes": 34, "workflow_optimized": true, "efficiency_gain": "20%"}'::jsonb
+),
+(
+    (SELECT id FROM auth.users WHERE email = 'james.health@healthnet.org'),
+    'Would you like to preview our new Patient Engagement Widget? It integrates with your existing portal.',
+    (SELECT id FROM message_templates WHERE context_type = 'early_access_invite'),
+    NOW() - INTERVAL '5 days',
+    NOW() - INTERVAL '4 days 22 hours',
+    '{"response_time_minutes": 39, "preview_scheduled": true, "potential_value": 20000}'::jsonb
+)
+;
+
+-- Add message templates
+INSERT INTO message_templates (
+    id,
+    template_text,
+    context_type,
+    metadata,
+    effectiveness_score
+) VALUES 
+(
+    'e3a805a6-520c-4e00-931c-9a35d98d90e4',
+    'Hi {customer_name}, following up on your recent {request_type}. We''ve made some updates you might be interested in.',
+    'follow_up',
+    jsonb_build_object(
+        'variables', ARRAY['customer_name', 'request_type'],
+        'suggested_use', 'Feature updates and improvements'
+    ),
+    4.5
+),
+(
+    'd72265d0-f807-4e30-b592-514fef924e97',
+    'Thanks for your feedback! We''ve implemented the changes you suggested.',
+    'confirmation',
+    jsonb_build_object(
+        'variables', ARRAY[]::text[],
+        'suggested_use', 'Confirming implemented changes'
+    ),
+    4.7
+);
+
+-- Then add communication history records
+INSERT INTO communication_history (
+    id,
+    customer_id,
+    message_text,
+    template_id,
+    sent_at,
+    response_received_at,
+    effectiveness_metrics
+) VALUES 
+-- Last week communications
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Hi John, following up on your recent feature request. We''ve made some updates you might be interested in.',
+    'e3a805a6-520c-4e00-931c-9a35d98d90e4',
+    NOW() - INTERVAL '7 days',
+    NOW() - INTERVAL '6 days 23 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.5,
+        'response_received', true,
+        'response_time_hours', 1,
+        'engagement_level', 'high'
+    )
+),
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Thanks for your feedback! We''ve implemented the changes you suggested.',
+    'd72265d0-f807-4e30-b592-514fef924e97',
+    NOW() - INTERVAL '5 days',
+    NOW() - INTERVAL '4 days 22 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.8,
+        'response_received', true,
+        'response_time_hours', 2,
+        'engagement_level', 'high'
+    )
+),
+-- Last month communications
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Monthly product update: New features and improvements',
+    'e3a805a6-520c-4e00-931c-9a35d98d90e4',
+    NOW() - INTERVAL '30 days',
+    NOW() - INTERVAL '29 days 20 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.2,
+        'response_received', true,
+        'response_time_hours', 4,
+        'engagement_level', 'medium'
+    )
+),
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Early access invitation to our new analytics dashboard',
+    'd72265d0-f807-4e30-b592-514fef924e97',
+    NOW() - INTERVAL '25 days',
+    NOW() - INTERVAL '24 days 23 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.7,
+        'response_received', true,
+        'response_time_hours', 1,
+        'engagement_level', 'high'
+    )
+),
+-- Two months ago
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Quick check-in on your experience with the latest features',
+    'e3a805a6-520c-4e00-931c-9a35d98d90e4',
+    NOW() - INTERVAL '60 days',
+    NOW() - INTERVAL '59 days 22 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.0,
+        'response_received', true,
+        'response_time_hours', 2,
+        'engagement_level', 'medium'
+    )
+),
+-- Different times of day to establish patterns
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Morning update on your pending requests',
+    'e3a805a6-520c-4e00-931c-9a35d98d90e4',
+    NOW() - INTERVAL '15 days' + INTERVAL '9 hours',
+    NOW() - INTERVAL '14 days 22 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.6,
+        'response_received', true,
+        'response_time_hours', 2,
+        'engagement_level', 'high'
+    )
+),
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Afternoon follow-up on feature usage',
+    'd72265d0-f807-4e30-b592-514fef924e97',
+    NOW() - INTERVAL '10 days' + INTERVAL '14 hours',
+    NOW() - INTERVAL '9 days 22 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.4,
+        'response_received', true,
+        'response_time_hours', 2,
+        'engagement_level', 'medium'
+    )
+),
+(
+    gen_random_uuid(),
+    (SELECT id FROM public.users WHERE email = 'peter.prof@edulearn.edu'),
+    'Evening summary of today''s updates',
+    'e3a805a6-520c-4e00-931c-9a35d98d90e4',
+    NOW() - INTERVAL '20 days' + INTERVAL '16 hours',
+    NOW() - INTERVAL '19 days 22 hours',
+    jsonb_build_object(
+        'customer_satisfaction', 4.3,
+        'response_received', true,
+        'response_time_hours', 2,
+        'engagement_level', 'medium'
+    )
+);
