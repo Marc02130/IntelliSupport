@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { API_ENDPOINTS } from '../lib/config'
 import {
   useReactTable,
   getCoreRowModel,
@@ -54,10 +55,16 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/search-table', {
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('No session')
+
+      const response = await fetch(API_ENDPOINTS.SEARCH_TABLE, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'x-user-id': session.user.id
         },
         body: JSON.stringify({
           queryId,
@@ -68,7 +75,8 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch data')
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to fetch data')
       }
 
       const { data: queryData, queryDef: newQueryDef } = await response.json()
