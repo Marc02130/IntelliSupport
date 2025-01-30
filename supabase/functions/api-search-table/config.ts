@@ -1,0 +1,4 @@
+export const config = {
+  RATE_LIMIT_REQUESTS: 100,
+  RATE_LIMIT_WINDOW_SECONDS: 60
+} 

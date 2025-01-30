@@ -1,6 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { corsHeaders } from '../_shared/cors.ts'
+import { checkRateLimit } from './rateLimit.ts'
+import { config } from './config.ts'
 
 const supabaseClient = createClient(
   Deno.env.get('DB_URL') ?? '',
@@ -13,6 +15,19 @@ serve(async (req) => {
   }
 
   try {
+    // Check rate limit
+    const rateLimitResult = await checkRateLimit(
+      req.headers.get('x-user-id'),
+      config.RATE_LIMIT_REQUESTS,
+      config.RATE_LIMIT_WINDOW_SECONDS
+    )
+    if (!rateLimitResult.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded' }),
+        { status: 429, headers: { ...corsHeaders, 'Retry-After': rateLimitResult.retryAfter } }
+      )
+    }
+
     const { queryId, filters, parentId, parentField } = await req.json()
 
     // Get the query definition
