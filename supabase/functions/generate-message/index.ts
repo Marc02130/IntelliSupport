@@ -1,8 +1,12 @@
-import { serve } from 'https://deno.fresh.dev/std@0.168.0/http/server.ts'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { OpenAI } from 'https://esm.sh/openai@4.28.0'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { connect } from 'https://deno.land/x/redis@v0.29.0/mod.ts'
 import { MODELS, PROMPT_TEMPLATES } from './config.ts'
-import { Database } from '../_shared/database.types'
+import { Database } from '../_shared/database.types.ts'
+import { checkRateLimit, addRateLimitHeaders } from './rateLimit.ts'
+import { validateRequest, createErrorResponse, ValidationError, RateLimitError } from './validate.ts'
+import { RateLimitInfo } from './types.ts'
 
 // Initialize OpenAI with environment variable
 const openai = new OpenAI({
@@ -45,22 +49,23 @@ serve(async (req) => {
   const startTime = Date.now()
   let customer_context: CustomerContext | undefined
   let context_type: string | undefined
-  
+  let rateLimitInfo: RateLimitInfo | undefined
+
   try {
     // Verify request method
     if (req.method !== 'POST') {
-      throw new Error('Method not allowed')
+      throw new ValidationError('Method not allowed', undefined, 'METHOD_NOT_ALLOWED')
     }
 
-    // Parse request body
-    const body: RequestBody = await req.json()
+    // Parse and validate request
+    const body = await req.json()
+    validateRequest(body)
+    
     customer_context = body.customer_context
     context_type = body.context_type
 
-    // Validate required fields
-    if (!customer_context || !context_type) {
-      throw new Error('Missing required fields')
-    }
+    // Check rate limit
+    rateLimitInfo = await checkRateLimit(customer_context.customer_id)
 
     // Log generation attempt
     const { data: logEntry, error: logError } = await supabaseClient
@@ -162,13 +167,14 @@ serve(async (req) => {
       { 
         headers: { 
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
+          ...(rateLimitInfo && addRateLimitHeaders(headers, rateLimitInfo))
         } 
       }
     )
 
   } catch (error) {
-    // Log error
+    // Log error with context if available
     if (customer_context?.customer_id) {
       await supabaseClient
         .from('message_generation_logs')
@@ -178,6 +184,7 @@ serve(async (req) => {
           input_context: customer_context,
           status: 'failed',
           error_message: error.message,
+          error_code: error instanceof ValidationError ? error.code : 'INTERNAL_ERROR',
           started_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
           generation_time: Date.now() - startTime,
@@ -185,20 +192,6 @@ serve(async (req) => {
         })
     }
 
-    // Return error response
-    return new Response(
-      JSON.stringify({
-        error: error.message,
-        metadata: {
-          customer_id: customer_context?.customer_id,
-          context_type,
-          timestamp: new Date().toISOString()
-        }
-      }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    )
+    return createErrorResponse(error)
   }
 })

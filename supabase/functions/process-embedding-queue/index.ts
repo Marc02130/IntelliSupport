@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
 
         // Store in Pinecone
         await upsertToPinecone({
-          id: `${item.metadata.type}_${item.entity_id}`,
+          id: `${item.entity_type}_${item.entity_id}`,
           values: embedding.data[0].embedding,
           metadata: item.metadata
         })
@@ -319,7 +319,7 @@ Deno.serve(async (req) => {
         const { error: dbError } = await supabase.rpc('process_embedding', {
           p_content: item.content,
           p_embedding: embedding.data[0].embedding,
-          p_entity_type: item.metadata.type,
+          p_entity_type: item.entity_type,
           p_entity_id: item.entity_id,
           p_metadata: item.metadata,
           p_queue_id: item.id

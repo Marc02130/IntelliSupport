@@ -1,5 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
-import { OpenAI } from 'openai'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { OpenAI } from 'https://esm.sh/openai@4.28.0'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 // Initialize clients
 const supabaseClient = createClient(
@@ -16,11 +17,17 @@ interface BatchRequest {
   context_type: string
   organization_id?: string
   max_batch_size?: number
+  scheduled_for?: string
+  channel?: 'email' | 'sms' | 'chat' | 'notification'
+  batch_template?: {
+    id: string
+    variables?: Record<string, any>
+  }
 }
 
 Deno.serve(async (req) => {
   try {
-    const { customer_ids, context_type, organization_id, max_batch_size = 100 } = await req.json() as BatchRequest
+    const { customer_ids, context_type, organization_id, max_batch_size = 100, scheduled_for, channel, batch_template } = await req.json() as BatchRequest
 
     // Get customers to process
     const { data: customers, error: customerError } = await supabaseClient
@@ -68,13 +75,18 @@ Deno.serve(async (req) => {
 
           // Store generated message
           const { error: insertError } = await supabaseClient
-            .from('communication_history')
+            .from('message_deliveries')
             .insert({
               customer_id: customer.customer_id,
-              message_text: messageData.message,
+              content: messageData.message,
+              channel: channel || 'email',
+              scheduled_for: scheduled_for || new Date().toISOString(),
+              status: scheduled_for ? 'scheduled' : 'pending',
               template_id: null, // TODO: Store template if needed
-              effectiveness_metrics: {
-                generation_metadata: messageData.metadata
+              metadata: {
+                generation_metadata: messageData.metadata,
+                batch_id: crypto.randomUUID(),
+                template_variables: batch_template?.variables
               }
             })
 

@@ -5,10 +5,15 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS http;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
--- Create custom session variable for audit control
+-- Set session-level configuration
 SELECT set_config('session.audit_trigger_enabled', 'TRUE', FALSE);
-SELECT set_config('app.edge_function_url', CURRENT_SETTING('EDGE_FUNCTION_URL'), false);
-SELECT set_config('app.service_role_key', CURRENT_SETTING('SERVICE_ROLE_KEY'), false); 
+
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA cron TO postgres;
+GRANT USAGE ON SCHEMA cron TO anon;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO anon;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA cron TO anon;
 
 -- Organizations table
 CREATE TABLE public.organizations (
@@ -32,16 +37,12 @@ CREATE TABLE public.users (
     phone TEXT,
     avatar TEXT,
     is_active BOOLEAN DEFAULT true,
+    full_name TEXT GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED;
     organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
     role TEXT DEFAULT 'customer' CHECK (role IN ('admin', 'agent', 'customer')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
--- Add computed column for full name
-ALTER TABLE public.users 
-ADD COLUMN full_name TEXT GENERATED ALWAYS AS 
-  (first_name || ' ' || last_name) STORED;
 
 -- Create knowledge domain table
 CREATE TABLE public.knowledge_domain (
@@ -319,6 +320,7 @@ CREATE TABLE public.ticket_routing_history (
 CREATE TABLE embedding_queue (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   entity_id UUID NOT NULL,
+  entity_type TEXT NOT NULL,
   content TEXT NOT NULL,
   embedding VECTOR(3072), -- optional, might be NULL
   metadata JSONB NOT NULL,
@@ -327,12 +329,22 @@ CREATE TABLE embedding_queue (
 
 -- We need to create the embeddings table
 CREATE TABLE IF NOT EXISTS embeddings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  entity_id UUID NOT NULL,
-  entity_type TEXT NOT NULL,
-  content TEXT,
-  metadata JSONB,
-  embedding vector(3072)
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entity_id UUID NOT NULL,
+    entity_type TEXT NOT NULL,
+    content TEXT,
+    metadata JSONB,
+    embedding vector(3072),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create tag to knowledge domain mapping table if not exists
+CREATE TABLE IF NOT EXISTS tag_knowledge_domain_map (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+    knowledge_domain_id UUID REFERENCES knowledge_domain(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tag_id, knowledge_domain_id)
 );
 
 -- Add logging table for cron jobs
@@ -416,6 +428,8 @@ COMMENT ON COLUMN search_queries.relationship_foreign_key IS 'Column in child/re
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_comment_templates_category ON comment_templates(category);
 CREATE INDEX IF NOT EXISTS idx_comment_templates_is_active ON comment_templates(is_active);
+
+CREATE INDEX idx_embeddings_entity ON embeddings(entity_id, entity_type);
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_entity_type ON embeddings(entity_type);
 CREATE INDEX IF NOT EXISTS idx_embeddings_entity_id ON embeddings(entity_id);

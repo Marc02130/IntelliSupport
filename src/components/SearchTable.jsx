@@ -54,56 +54,29 @@ export default function SearchTable({ queryId, parentId = null, parentField = nu
       setLoading(true)
       setError(null)
 
-      if (!currentQueryDef) {
-        throw new Error('Query definition not loaded')
+      const response = await fetch('/api/search-table', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          queryId,
+          filters: {},
+          parentId,
+          parentField
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch data')
       }
 
-      // Get the current user ID first
-      const { data: { user } } = await supabase.auth.getUser()
-      const userId = user?.id
-
-      // Get base query
-      let query = supabase.from(currentQueryDef.base_table)
-
-      // Add select
-      if (currentQueryDef.query_definition.select) {
-        query = query.select(currentQueryDef.query_definition.select)
-      }
-
-      // Handle where clauses
-      let whereClause = currentQueryDef.query_definition.where || {}
-      
-      // Add parent filter if provided (for child tables)
-      if (parentId && parentField) {
-        whereClause = {
-          ...whereClause,
-          [parentField]: parentId
-        }
-      }
-
-      // Apply where clauses
-      if (Object.keys(whereClause).length > 0) {
-        for (const [key, value] of Object.entries(whereClause)) {
-          if (value === 'auth.uid()') {
-            query = query.eq(key, userId)
-          } else if (typeof value === 'string' && value.startsWith('(')) {
-            // Handle SQL expressions/subqueries
-            const sqlWithUserId = value.replace('auth.uid()', `'${userId}'`)
-            const { data: subqueryData, error: rpcError } = await supabase.rpc('execute_sql', { 
-              sql_query: sqlWithUserId.slice(1, -1)
-            })
-            if (rpcError) throw new Error(`RPC Error: ${rpcError.message}`)
-            if (!subqueryData || !subqueryData[0]) throw new Error('No results from subquery')
-            query = query.eq(key, subqueryData[0].result)
-          } else {
-            query = query.eq(key, value)
-          }
-        }
-      }
-
-      const { data: queryData, error: queryError } = await query
-      if (queryError) throw queryError
+      const { data: queryData, queryDef: newQueryDef } = await response.json()
       setData(queryData)
+      if (!currentQueryDef) {
+        setQueryDef(newQueryDef)
+      }
+
     } catch (err) {
       console.error('Error loading data:', err)
       setError(err.message)

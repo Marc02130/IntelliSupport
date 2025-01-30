@@ -1,38 +1,3 @@
--- Seed Knowledge Domains
-INSERT INTO public.knowledge_domain (name, description)
-VALUES 
-    ('Technical Support', 'General technical support and troubleshooting'),
-    ('Billing', 'Billing and subscription related issues'),
-    ('Product Features', 'Product functionality and feature inquiries'),
-    ('Security', 'Security-related concerns and configurations'),
-    ('API Integration', 'API usage and integration support');
-
--- Assign Knowledge Domains to Agents
-INSERT INTO public.user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
-SELECT 
-    au.id,
-    kd.id,
-    CASE 
-        WHEN pu.last_name = 'AgentOne' THEN 'expert'
-        ELSE 'intermediate'
-    END as expertise,
-    3
-FROM auth.users au
-JOIN public.users pu ON pu.id = au.id
-CROSS JOIN public.knowledge_domain kd
-WHERE pu.role = 'agent';
-
--- Seed Tags (if not exists)
-INSERT INTO public.tags (id, name)
-VALUES 
-    (gen_random_uuid(), 'urgent'),
-    (gen_random_uuid(), 'bug'),
-    (gen_random_uuid(), 'feature-request'),
-    (gen_random_uuid(), 'documentation'),
-    (gen_random_uuid(), 'billing'),
-    (gen_random_uuid(), 'security')
-ON CONFLICT (name) DO NOTHING;
-
 -- Seed Sample Tickets
 INSERT INTO public.tickets (subject, description, status, priority, requester_id, assignee_id, organization_id)
 SELECT 
@@ -82,33 +47,6 @@ SELECT
     false as is_private
 FROM public.tickets t
 WHERE t.subject LIKE '%dashboard%';
-
--- Create initial teams
-INSERT INTO public.teams (id, name, description) VALUES
-('11111111-1111-1111-1111-111111111113', 'Technical Support', 'Primary technical support team'),
-('22222222-2222-2222-2222-222222222224', 'Billing Support', 'Billing and account support team');
-
--- Assign agents to teams
-INSERT INTO public.team_members (team_id, user_id, role)
-SELECT 
-    '11111111-1111-1111-1111-111111111113',
-    id,
-    CASE 
-        WHEN email LIKE '%AgentOne%' THEN 'lead'
-        ELSE 'member'
-    END
-FROM auth.users
-WHERE raw_user_meta_data->>'role' = 'agent';
-
--- Add team schedules
-INSERT INTO public.team_schedules (team_id, user_id, start_time, end_time)
-SELECT 
-    '11111111-1111-1111-1111-111111111113',
-    id,
-    NOW(),
-    NOW() + INTERVAL '8 hours'
-FROM auth.users
-WHERE raw_user_meta_data->>'role' = 'agent';
 
 -- Add initial comment templates
 INSERT INTO comment_templates (
@@ -196,139 +134,6 @@ INSERT INTO comment_templates (
     80,
     true
 );
-
--- Knowledge Domains (updated with unique names)
-INSERT INTO knowledge_domain (name, description) VALUES
-('Advanced Troubleshooting', 'Complex technical issue resolution'),
-('Customer Success', 'Customer satisfaction and retention'),
-('Platform Architecture', 'System architecture and design'),
-('Data Privacy', 'Privacy and data protection'),
-('API Development', 'API design and implementation'),
-('System Optimization', 'Performance tuning and optimization');
-
--- Tags (with conflict handling)
-INSERT INTO tags (name) VALUES
-('urgent'),
-('bug'),
-('feature-request'),
-('billing'),
-('security'),
-('performance'),
-('integration'),
-('documentation'),
-('user-access'),
-('configuration')
-ON CONFLICT (name) DO NOTHING;
-
--- Teams
-INSERT INTO teams (name, description) VALUES
-('Technical Team', 'Handle technical issues'),
-('Account Team', 'Handle account and billing'),
-('Security Team', 'Handle security issues');
-
--- Team Members and Schedules
-INSERT INTO team_members (team_id, user_id, role) 
-SELECT t.id, u.id, 'lead'
-FROM teams t, auth.users u 
-WHERE t.name = 'Technical Team' AND u.email = 'admin1@support.com';
-
-INSERT INTO team_members (team_id, user_id, role)
-SELECT t.id, u.id, 'member'
-FROM teams t, auth.users u
-WHERE t.name = 'Technical Team' AND u.email IN ('agent1@support.com', 'agent2@support.com');
-
-INSERT INTO team_members (team_id, user_id, role)
-SELECT t.id, u.id, 'lead'
-FROM teams t, auth.users u
-WHERE t.name = 'Account Team' AND u.email = 'admin2@support.com';
-
-INSERT INTO team_members (team_id, user_id, role)
-SELECT t.id, u.id, 'member'
-FROM teams t, auth.users u
-WHERE t.name = 'Account Team' AND u.email = 'agent3@support.com';
-
--- Team Member Schedules (UTC times)
--- Technical Team - Early Shift
-INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
-SELECT 
-    t.id,
-    u.id,
-    NOW()::date + '08:00'::time,  -- Today at 8 AM
-    NOW()::date + '16:00'::time   -- Today at 4 PM
-FROM teams t, auth.users u
-WHERE t.name = 'Technical Team' 
-AND u.email = 'agent1@support.com';
-
--- Technical Team - Mid Shift
-INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
-SELECT 
-    t.id,
-    u.id,
-    NOW()::date + '10:00'::time,  -- Today at 10 AM
-    NOW()::date + '18:00'::time   -- Today at 6 PM
-FROM teams t, auth.users u
-WHERE t.name = 'Technical Team' 
-AND u.email = 'agent2@support.com';
-
--- Account Team - Late Shift
-INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
-SELECT 
-    t.id,
-    u.id,
-    NOW()::date + '12:00'::time,  -- Today at 12 PM
-    NOW()::date + '20:00'::time   -- Today at 8 PM
-FROM teams t, auth.users u
-WHERE t.name = 'Account Team' 
-AND u.email = 'agent3@support.com';
-
--- Admin Flexible Hours
-INSERT INTO team_schedules (team_id, user_id, start_time, end_time)
-SELECT 
-    t.id,
-    u.id,
-    NOW()::date + '09:00'::time,  -- Today at 9 AM
-    NOW()::date + '17:00'::time   -- Today at 5 PM
-FROM teams t, auth.users u
-WHERE t.name IN ('Technical Team', 'Account Team')
-AND u.email LIKE 'admin%';
-
--- Team Tags
-INSERT INTO team_tags (team_id, tag_id)
-SELECT t.id, tag.id
-FROM teams t, tags tag
-WHERE t.name = 'Technical Team' 
-AND tag.name IN ('bug', 'performance', 'integration', 'configuration');
-
-INSERT INTO team_tags (team_id, tag_id)
-SELECT t.id, tag.id
-FROM teams t, tags tag
-WHERE t.name = 'Account Team' 
-AND tag.name IN ('billing', 'user-access');
-
-INSERT INTO team_tags (team_id, tag_id)
-SELECT t.id, tag.id
-FROM teams t, tags tag
-WHERE t.name = 'Security Team' 
-AND tag.name IN ('security', 'user-access');
-
--- Knowledge Domain Assignments for Agents and Admins
-INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
-SELECT u.id, kd.id, 'expert', 5
-FROM auth.users u, knowledge_domain kd
-WHERE u.email = 'agent1@support.com' 
-AND kd.name IN ('Advanced Troubleshooting', 'API Development', 'System Optimization');
-
-INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
-SELECT u.id, kd.id, 'intermediate', 3
-FROM auth.users u, knowledge_domain kd
-WHERE u.email = 'agent2@support.com'
-AND kd.name IN ('Platform Architecture', 'Advanced Troubleshooting');
-
-INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
-SELECT u.id, kd.id, 'expert', 4
-FROM auth.users u, knowledge_domain kd
-WHERE u.email = 'agent3@support.com'
-AND kd.name IN ('Customer Success', 'Data Privacy');
 
 -- Tickets and Comments
 INSERT INTO tickets (subject, description, status, priority, requester_id, organization_id)
@@ -1085,7 +890,7 @@ INSERT INTO communication_history (
     'd72265d0-f807-4e30-b592-514fef924e97',
     NOW() - INTERVAL '5 days',
     NOW() - INTERVAL '4 days 22 hours',
-    jsonb_build_object(
+        jsonb_build_object(
         'customer_satisfaction', 4.8,
         'response_received', true,
         'response_time_hours', 2,
@@ -1129,7 +934,7 @@ INSERT INTO communication_history (
     'e3a805a6-520c-4e00-931c-9a35d98d90e4',
     NOW() - INTERVAL '60 days',
     NOW() - INTERVAL '59 days 22 hours',
-    jsonb_build_object(
+        jsonb_build_object(
         'customer_satisfaction', 4.0,
         'response_received', true,
         'response_time_hours', 2,
@@ -1158,7 +963,7 @@ INSERT INTO communication_history (
     'd72265d0-f807-4e30-b592-514fef924e97',
     NOW() - INTERVAL '10 days' + INTERVAL '14 hours',
     NOW() - INTERVAL '9 days 22 hours',
-    jsonb_build_object(
+        jsonb_build_object(
         'customer_satisfaction', 4.4,
         'response_received', true,
         'response_time_hours', 2,
@@ -1172,7 +977,7 @@ INSERT INTO communication_history (
     'e3a805a6-520c-4e00-931c-9a35d98d90e4',
     NOW() - INTERVAL '20 days' + INTERVAL '16 hours',
     NOW() - INTERVAL '19 days 22 hours',
-    jsonb_build_object(
+        jsonb_build_object(
         'customer_satisfaction', 4.3,
         'response_received', true,
         'response_time_hours', 2,

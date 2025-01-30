@@ -82,27 +82,57 @@ BEGIN
 END;
 $$;
 
--- Update process embedding job to use Supabase environment
-CREATE OR REPLACE FUNCTION process_embedding_queue() 
+-- Function to batch messages
+CREATE OR REPLACE FUNCTION batch_messages()
 RETURNS void AS $$
 BEGIN
-    PERFORM net.http_post(
-        url := current_setting('app.edge_function_url') || '/process-embedding-queue',
-        headers := jsonb_build_object(
-            'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
-            'Content-Type', 'application/json'
-        ),
-        body := '{}'
-    );
+    -- Log start
+    INSERT INTO cron_job_logs (job_name, status) 
+    VALUES ('batch-messages', 'started');
+
+    BEGIN
+        -- Call edge function to batch messages
+        PERFORM pg_notify('batch_messages', '{}');
+
+        -- Log success
+        INSERT INTO cron_job_logs (job_name, status)
+        VALUES ('batch-messages', 'completed');
+
+    EXCEPTION WHEN OTHERS THEN
+        -- Log error
+        INSERT INTO cron_job_logs (job_name, status, error)
+        VALUES ('batch-messages', 'failed', SQLERRM);
+        RAISE;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Process embedding queue
+CREATE OR REPLACE FUNCTION process_embedding_queue()
+RETURNS void AS $$
+DECLARE
+    batch_size INTEGER := 100;
+BEGIN
+    -- Log start
+    INSERT INTO cron_job_logs (job_name, status) 
+    VALUES ('process-embedding-queue', 'started');
+
+    BEGIN
+        -- Call edge function to process embeddings
+        PERFORM pg_notify('process_embedding_queue', jsonb_build_object(
+            'batch_size', batch_size
+        )::text);
 
         -- Log success
         INSERT INTO cron_job_logs (job_name, status)
         VALUES ('process-embedding-queue', 'completed');
+
     EXCEPTION WHEN OTHERS THEN
         -- Log error
         INSERT INTO cron_job_logs (job_name, status, error)
         VALUES ('process-embedding-queue', 'failed', SQLERRM);
         RAISE;
+    END;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -118,13 +148,55 @@ BEGIN
     VALUES ('route-tickets', 'started');
 
     BEGIN
-        PERFORM net.http_post(
-            url := current_setting('app.edge_function_url') || '/route-tickets-job',
-            headers := jsonb_build_object(
-                'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
-                'Content-Type', 'application/json'
-            ),
-            body := '{}'
+        -- Find unassigned tickets with their tags
+        WITH unassigned_tickets AS (
+            SELECT 
+                t.id, 
+                t.organization_id,
+                ARRAY_AGG(tags.name) as tag_names
+            FROM tickets t
+            LEFT JOIN ticket_tags tt ON tt.ticket_id = t.id
+            LEFT JOIN tags ON tags.id = tt.tag_id
+            WHERE t.assignee_id IS NULL
+            AND t.status = 'open'
+            GROUP BY t.id, t.organization_id
+        ),
+        -- Find available agents with matching expertise
+        available_agents AS (
+            SELECT 
+                u.id as agent_id,
+                u.organization_id,
+                kd.name as knowledge_domain,
+                ukd.expertise,
+                COUNT(t.id) as current_ticket_count
+            FROM users u
+            JOIN user_knowledge_domain ukd ON ukd.user_id = u.id
+            JOIN knowledge_domain kd ON kd.id = ukd.knowledge_domain_id
+            LEFT JOIN tickets t ON t.assignee_id = u.id AND t.status = 'open'
+            WHERE u.role = 'agent'
+            AND u.is_active = true
+            GROUP BY u.id, u.organization_id, kd.name, ukd.expertise
+        )
+        -- Update tickets with assigned agents
+        UPDATE tickets t
+        SET 
+            assignee_id = a.agent_id,
+            updated_at = NOW()
+        FROM unassigned_tickets ut
+        JOIN available_agents a ON 
+            a.organization_id = ut.organization_id 
+            -- Match based on tag name matching knowledge domain name
+            AND LOWER(a.knowledge_domain) = ANY(
+                SELECT LOWER(unnest(ut.tag_names))
+            )
+        WHERE t.id = ut.id
+        AND a.current_ticket_count = (
+            SELECT MIN(current_ticket_count)
+            FROM available_agents a2
+            WHERE a2.organization_id = ut.organization_id
+            AND LOWER(a2.knowledge_domain) = ANY(
+                SELECT LOWER(unnest(ut.tag_names))
+            )
         );
 
         -- Log success
@@ -139,7 +211,6 @@ BEGIN
 END;
 $$;
 
-
 -- Teams
 -- Drop triggers on handle_team_change
 DROP TRIGGER IF EXISTS teams_change ON teams;
@@ -147,14 +218,14 @@ DROP TRIGGER IF EXISTS team_members_change ON team_members;
 DROP TRIGGER IF EXISTS team_tag_change ON team_tags;
 DROP TRIGGER IF EXISTS team_schedule_change ON team_schedules;
 
--- Function to handle team changes/*  */
+-- Function to handle team changes
 CREATE OR REPLACE FUNCTION handle_team_change()
 RETURNS TRIGGER AS $$
 DECLARE
   team_id uuid;
 BEGIN
   -- Get the team_id based on the trigger source
-    IF TG_TABLE_NAME = 'teams' THEN
+  IF TG_TABLE_NAME = 'teams' THEN
     team_id := NEW.id;
   ELSIF TG_TABLE_NAME = 'team_members' THEN
     team_id := NEW.team_id;
@@ -165,36 +236,37 @@ BEGIN
   END IF;
 
   -- Delete existing embedding for this team
-  DELETE FROM embeddings WHERE entity_id = team_id;
-  DELETE FROM embedding_queue WHERE entity_id = team_id;
+  DELETE FROM embeddings WHERE entity_id = team_id AND entity_type = 'team';
+  DELETE FROM embedding_queue WHERE entity_id = team_id AND entity_type = 'team';
 
   -- Only queue team if it still exists and meets requirements
   IF TG_OP != 'DELETE' OR TG_TABLE_NAME != 'teams' THEN
-    INSERT INTO embedding_queue (entity_id, content, metadata)
+    INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
     SELECT DISTINCT ON (t.id)
       t.id,
+      'team',
       t.name || ' ' || COALESCE(t.description, ''),
-            jsonb_build_object(
+      jsonb_build_object(
         'id', t.id,
         'name', t.name,
-                'type', 'team',
+        'type', 'team',
         'tags', (
           SELECT array_agg(tags.name)
           FROM team_tags tt
           JOIN tags ON tags.id = tt.tag_id
           WHERE tt.team_id = t.id
         ),
-                'members', (
+        'members', (
           SELECT jsonb_agg(
             jsonb_build_object(
-                        'user_id', tm.user_id,
-                        'role', tm.role,
-                'schedule', (
+              'user_id', tm.user_id,
+              'role', tm.role,
+              'schedule', (
                 SELECT jsonb_build_object(
-                        'start_time', ts.start_time,
+                  'start_time', ts.start_time,
                   'end_time', ts.end_time
                 )
-                    FROM team_schedules ts
+                FROM team_schedules ts
                 WHERE ts.team_id = t.id 
                 AND ts.user_id = tm.user_id
               ),
@@ -282,13 +354,14 @@ BEGIN
   -- Only process for admins and agents
   IF NEW.role IN ('admin', 'agent') THEN
     -- Delete existing embedding for this user
-    DELETE FROM embeddings WHERE entity_id = NEW.id;
-    DELETE FROM embedding_queue WHERE entity_id = NEW.id;
+    DELETE FROM embeddings WHERE entity_id = NEW.id AND entity_type = 'user';
+    DELETE FROM embedding_queue WHERE entity_id = NEW.id AND entity_type = 'user';
 
     -- Queue new embedding if user has knowledge domains
-    INSERT INTO embedding_queue (entity_id, content, metadata)
+    INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
     SELECT 
       u.id,
+      'user',
       u.full_name,
             jsonb_build_object(
         'id', u.id,
@@ -350,14 +423,15 @@ BEGIN
     AND u.raw_user_meta_data->>'role' IN ('admin', 'agent')
   ) THEN
     -- Delete existing embeddings
-    DELETE FROM embeddings WHERE entity_id = user_id;
-    DELETE FROM embedding_queue WHERE entity_id = user_id;
+    DELETE FROM embeddings WHERE entity_id = user_id AND entity_type = 'user';
+    DELETE FROM embedding_queue WHERE entity_id = user_id AND entity_type = 'user';
 
     -- Queue new embedding if not deleted and user has knowledge domains
     IF TG_OP != 'DELETE' THEN
-      INSERT INTO embedding_queue (entity_id, content, metadata)
+      INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
       SELECT 
         u.id,
+        'user',
         u.full_name || ' - ' || COALESCE(
           (SELECT string_agg(
             kd.name || ' (' || ukd.expertise || ')',
@@ -417,13 +491,14 @@ CREATE OR REPLACE FUNCTION handle_ticket_change()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Delete existing embedding
-  DELETE FROM embeddings WHERE entity_id = NEW.id;
-  DELETE FROM embedding_queue WHERE entity_id = NEW.id;
+  DELETE FROM embeddings WHERE entity_id = NEW.id AND entity_type = 'ticket';
+  DELETE FROM embedding_queue WHERE entity_id = NEW.id AND entity_type = 'ticket';
 
   -- Queue new embedding if ticket has tags
-  INSERT INTO embedding_queue (entity_id, content, metadata)
+  INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
   SELECT 
     t.id,
+    'ticket',
     t.subject || ' ' || COALESCE(t.description, ''),
     jsonb_build_object(
       'id', t.id,
@@ -483,14 +558,20 @@ BEGIN
   DELETE FROM embeddings WHERE entity_id = CASE 
     WHEN TG_OP = 'DELETE' THEN OLD.ticket_id
     ELSE NEW.ticket_id
-  END;
+  END AND entity_type = 'ticket';
+
+  DELETE FROM embedding_queue WHERE entity_id = CASE 
+    WHEN TG_OP = 'DELETE' THEN OLD.ticket_id
+    ELSE NEW.ticket_id
+  END AND entity_type = 'ticket';
 
   -- Queue new embedding if not deleted and has tags
   IF TG_OP != 'DELETE' THEN
-    INSERT INTO embedding_queue (entity_id, content, metadata)
+    INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
     SELECT 
         t.id,
-      t.subject || ' ' || COALESCE(t.description, ''),
+        'ticket',
+        t.subject || ' ' || COALESCE(t.description, ''),
         jsonb_build_object(
             'id', t.id,
         'type', 'ticket',
@@ -547,13 +628,14 @@ CREATE OR REPLACE FUNCTION handle_ticket_comment_change()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Delete existing embedding and queue entries
-  DELETE FROM embeddings WHERE entity_id = NEW.ticket_id;
-  DELETE FROM embedding_queue WHERE entity_id = NEW.ticket_id;
+  DELETE FROM embeddings WHERE entity_id = NEW.ticket_id AND entity_type = 'ticket';
+  DELETE FROM embedding_queue WHERE entity_id = NEW.ticket_id AND entity_type = 'ticket';
 
   -- Queue new embedding if ticket has tags
-  INSERT INTO embedding_queue (entity_id, content, metadata)
+  INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
   SELECT 
     t.id,
+    'ticket',
     t.subject || ' ' || COALESCE(t.description, '') || ' ' || COALESCE(
       (SELECT string_agg(content, ' ')
        FROM (
@@ -638,13 +720,14 @@ BEGIN
         )
     ) THEN
         -- Delete existing embeddings
-        DELETE FROM embeddings WHERE entity_id = NEW.customer_id;
-        DELETE FROM embedding_queue WHERE entity_id = NEW.customer_id;
+        DELETE FROM embeddings WHERE entity_id = NEW.customer_id AND entity_type = 'customer_history';
+        DELETE FROM embedding_queue WHERE entity_id = NEW.customer_id AND entity_type = 'customer_history';
 
         -- Queue new embedding
-        INSERT INTO embedding_queue (entity_id, content, metadata)
-    SELECT 
-        u.id,
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
+        SELECT 
+            u.id,
+            'customer_history',
             -- Content combines preferences and communication history
             cp.preferred_style || ' - ' || 
             COALESCE(
@@ -713,13 +796,14 @@ BEGIN
         AND u.raw_user_meta_data->>'role' = 'customer'
     ) THEN
         -- Delete existing embeddings
-        DELETE FROM embeddings WHERE entity_id = NEW.customer_id;
-        DELETE FROM embedding_queue WHERE entity_id = NEW.customer_id;
+        DELETE FROM embeddings WHERE entity_id = NEW.customer_id AND entity_type = 'customer_preferences';
+        DELETE FROM embedding_queue WHERE entity_id = NEW.customer_id AND entity_type = 'customer_preferences';
 
         -- Queue new embedding
-        INSERT INTO embedding_queue (entity_id, content, metadata)
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
         SELECT 
             u.id,
+            'customer_preferences',
             -- Content combines customer info and preferences only
             u.full_name || ' - ' || 
             NEW.preferred_style || ' - ' ||
@@ -767,9 +851,10 @@ BEGIN
         WHERE t.organization_id = NEW.id
         AND tc.created_at > NOW() - INTERVAL '30 days'
     ) THEN
-        INSERT INTO embedding_queue (entity_id, content, metadata)
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
         SELECT 
         NEW.id,
+            'organization',
             NEW.name || ' - ' || NEW.description || ' - ' || NEW.domain,
         jsonb_build_object(
             'id', NEW.id,
@@ -820,9 +905,10 @@ BEGIN
         WHERE tt.ticket_id = NEW.id
         AND tc.created_at > NOW() - INTERVAL '30 days'
     ) THEN
-        INSERT INTO embedding_queue (entity_id, content, metadata)
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
         SELECT 
             NEW.organization_id,
+            'organization_ticket_patterns',
             string_agg(t.subject || ' - ' || t.description, ' | '),
             jsonb_build_object(
                 'id', NEW.organization_id,
@@ -879,9 +965,10 @@ BEGIN
         WHERE t.id = NEW.ticket_id
         AND tc.created_at > NOW() - INTERVAL '30 days'
     ) THEN
-        INSERT INTO embedding_queue (entity_id, content, metadata)
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
         SELECT 
             t.requester_id,
+            'customer_interactions_patterns',
             string_agg(tc.content, ' | '),
             jsonb_build_object(
                 'id', t.requester_id,
@@ -932,9 +1019,10 @@ BEGIN
     -- Only process if message was edited and has effectiveness metrics
     IF NEW.message_text != OLD.message_text AND NEW.effectiveness_metrics IS NOT NULL THEN
         -- Queue for fine-tuning
-        INSERT INTO embedding_queue (entity_id, content, metadata)
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
         SELECT 
             NEW.id,
+            'message_edit',
             NEW.message_text,
             jsonb_build_object(
                 'type', 'message_edit',
@@ -980,9 +1068,10 @@ BEGIN
         AND (NEW.effectiveness_metrics->>'customer_satisfaction')::float > 4.0;
         
         -- Queue for style analysis
-        INSERT INTO embedding_queue (entity_id, content, metadata)
+        INSERT INTO embedding_queue (entity_id, entity_type, content, metadata)
         SELECT 
             NEW.id,
+            'message_style_analysis',
             NEW.message_text,
             jsonb_build_object(
                 'type', 'style_analysis',

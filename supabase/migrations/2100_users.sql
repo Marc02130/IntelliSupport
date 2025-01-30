@@ -850,3 +850,60 @@ SET organization_id = (
     WHERE domain = SPLIT_PART(public.users.email, '@', 2)
 )
 WHERE role = 'customer';
+
+-- Seed Knowledge Domains
+INSERT INTO public.knowledge_domain (name, description)
+VALUES 
+    ('Technical Support', 'General technical support and troubleshooting'),
+    ('Billing', 'Billing and subscription related issues'),
+    ('Product Features', 'Product functionality and feature inquiries'),
+    ('Security', 'Security-related concerns and configurations'),
+    ('API Integration', 'API usage and integration support'),
+    ('Advanced Troubleshooting', 'Complex technical issue resolution'),
+    ('Customer Success', 'Customer satisfaction and retention'),
+    ('Platform Architecture', 'System architecture and design'),
+    ('Data Privacy', 'Privacy and data protection'),
+    ('API Development', 'API design and implementation'),
+    ('System Optimization', 'Performance tuning and optimization');
+
+-- Knowledge Domain Assignments for Agents and Admins
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'expert', 5
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'agent1@support.com' 
+AND kd.name IN ('Advanced Troubleshooting', 'API Development', 'System Optimization');
+
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'intermediate', 3
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'agent2@support.com'
+AND kd.name IN ('Platform Architecture', 'Advanced Troubleshooting');
+
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'expert', 4
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'agent3@support.com'
+AND kd.name IN ('Customer Success', 'Data Privacy');
+
+-- Knowledge Domain Assignments for Agents and Admins
+INSERT INTO user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT u.id, kd.id, 'expert', 5
+FROM auth.users u, knowledge_domain kd
+WHERE u.email = 'marc.breneiser@gauntletai.com'
+AND kd.name IN ('Billing');
+
+-- Assign Knowledge Domains to Agents
+INSERT INTO public.user_knowledge_domain (user_id, knowledge_domain_id, expertise, years_experience)
+SELECT 
+    au.id,
+    kd.id,
+    CASE 
+        WHEN pu.last_name = 'AgentOne' THEN 'expert'
+        ELSE 'intermediate'
+    END as expertise,
+    3
+FROM auth.users au
+JOIN public.users pu ON pu.id = au.id
+CROSS JOIN public.knowledge_domain kd
+WHERE pu.role = 'agent'
+ON CONFLICT (user_id, knowledge_domain_id) DO NOTHING;
