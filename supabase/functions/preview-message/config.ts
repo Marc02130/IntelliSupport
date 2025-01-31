@@ -4,19 +4,20 @@ export const MODELS = {
 }
 
 export const PROMPT_TEMPLATES = {
+  SYSTEM_CONTEXT: `You are a helpful assistant providing real-time suggestions for customer communications.
+    Keep responses under 100 words.
+    Focus on clarity and professionalism.
+    Use technical language appropriately.`,
+
   IMPROVEMENT: `Review and suggest improvements for this draft message:
     {draft}
     
-    Consider:
-    1. Tone and style matching
-    2. Clarity and effectiveness
-    3. Previous communication patterns
-    4. Customer preferences`,
+    Improve while keeping core message brief and clear.`
+}
 
-  SYSTEM_CONTEXT: `You are a helpful assistant providing real-time suggestions for customer communications.
-    Focus on:
-    - Maintaining consistent style
-    - Personalizing based on history
-    - Improving clarity and impact
-    - Matching communication preferences`
+export const config = {
+  DB_URL: Deno.env.get('DB_URL') ?? '',
+  SERVICE_ROLE_KEY: Deno.env.get('SERVICE_ROLE_KEY') ?? '',
+  OPENAI_API_KEY: Deno.env.get('OPENAI_API_KEY') ?? '',
+  OPENAI_MODEL: Deno.env.get('OPENAI_MODEL') ?? ''
 } 

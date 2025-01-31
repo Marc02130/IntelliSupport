@@ -95,3 +95,20 @@ SELECT cron.schedule(
   AND status IN ('success', 'failed');
   $$
 ); 
+
+
+-- Create a scheduled job to run every hour instead of using a trigger
+SELECT cron.schedule(
+  'cleanup-old-previews',
+  '0 * * * *',  -- Run every hour
+  'SELECT clean_old_previews_without_feedback()'
+); 
+
+-- Check if this has learning update jobs configured 
+
+-- Add rapid learning updates
+SELECT cron.schedule(
+  'rapid-learning-updates',
+  '*/5 * * * *',  -- Every 5 minutes
+  'SELECT process_message_feedback();'
+); 

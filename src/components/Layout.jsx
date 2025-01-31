@@ -1,15 +1,19 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useOutletContext } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Layout({ session }) {
   // Get full name from user metadata
-  const fullName = session.user.user_metadata?.full_name || session.user.email
+  const fullName = session?.user?.user_metadata?.full_name || session?.user?.email || ''
   const [firstName, lastName] = fullName.split(' ')
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+  }
+
+  if (!session) {
+    return <div>Loading...</div>
   }
 
   return (
@@ -22,11 +26,11 @@ export default function Layout({ session }) {
           handleSignOut={handleSignOut}
         />
         <main className="main-content">
-          <Outlet context={session} />
+          <Outlet context={{ session, supabase }} />
         </main>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .app-layout {
           display: flex;
           height: 100vh;

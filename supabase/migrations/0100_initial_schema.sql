@@ -37,7 +37,7 @@ CREATE TABLE public.users (
     phone TEXT,
     avatar TEXT,
     is_active BOOLEAN DEFAULT true,
-    full_name TEXT GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED;
+    full_name TEXT GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED,
     organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
     role TEXT DEFAULT 'customer' CHECK (role IN ('admin', 'agent', 'customer')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

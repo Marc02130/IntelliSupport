@@ -1,3 +1,5 @@
+delete from public.sidebar_navigation;
+
 -- Add to Admin navigation
 INSERT INTO public.sidebar_navigation 
 (id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active) 
@@ -31,3 +33,9 @@ VALUES
 ('11111111-2222-3333-4444-555555555555', 'Navigation', 'Navigation management', '🧭', '99999999-9999-9999-9999-222222222222', 'ffffffff-eeee-dddd-cccc-111111111111', '/list', 70, ARRAY['admin.navigation.manage'], true),
 ('eeeeeeee-eeee-eeee-eeee-333333333333', 'Teams', 'Team management', '👥', '99999999-9999-9999-9999-222222222222', 'eeeeeeee-eeee-eeee-eeee-111111111111', '/list', 70, ARRAY['admin.teams.manage'], true),
 ('cccccccc-1111-2222-3333-555555555555', 'Comment Templates', 'Manage comment templates', '📝', '99999999-9999-9999-9999-222222222222', 'cccccccc-1111-2222-3333-444444444444', '/list', 60, ARRAY['admin.templates.manage'], true);
+
+INSERT INTO public.sidebar_navigation 
+(id, name, description, icon, parent_id, search_query_id, url, sort_order, permissions_required, is_active) 
+VALUES
+('11111111-1111-1111-3333-222222222222', 'Customers', 'customer', '👥', null, null, '/', 15, ARRAY['sidebar.reports'], true),
+('cccccccc-4444-2222-4444-555555555555', 'Batch Messages', 'Batch messages', '📝', '11111111-1111-1111-3333-222222222222', null, '/messages/batch', 60, ARRAY['tickets.view.assigned'], true);

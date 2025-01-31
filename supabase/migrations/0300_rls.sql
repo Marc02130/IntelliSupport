@@ -1,6 +1,12 @@
 -- Enable access to schema
 GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT ON auth.users TO service_role;
+
 -- -------------------------- Auth Users --------------------------
+-- Grant basic table permissions
+GRANT SELECT ON auth.users TO authenticated;
+GRANT SELECT ON auth.users TO service_role;
+
 -- Drop ALL existing policies
 DROP POLICY IF EXISTS "Users can read own user data" ON auth.users;
 
@@ -16,6 +22,7 @@ DROP POLICY IF EXISTS "search_queries_read_policy" ON public.search_queries;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.search_queries TO authenticated;
+GRANT ALL ON public.search_queries TO service_role;
 
 -- enable RLS
 ALTER TABLE "public"."search_queries" ENABLE ROW LEVEL SECURITY;
@@ -38,7 +45,7 @@ DROP POLICY IF EXISTS "search_query_relationships_read_policy" ON public.search_
 
 -- enable RLS
 ALTER TABLE "public"."search_query_relationships" ENABLE ROW LEVEL SECURITY;
-
+GRANT ALL ON public.search_query_relationships TO service_role;
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.search_query_relationships TO authenticated;
 
@@ -108,6 +115,7 @@ ALTER TABLE "public"."organizations" ENABLE ROW LEVEL SECURITY;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.organizations TO authenticated;
+GRANT ALL ON public.organizations TO service_role;
 
 -- Add RLS policies for organizations
 CREATE POLICY "Users can view own organization" ON public.organizations
@@ -135,6 +143,7 @@ DROP POLICY IF EXISTS "Users can view ticket comments" ON public.ticket_comments
 
 -- enable RLS
 ALTER TABLE "public"."ticket_comments" ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.ticket_comments TO service_role;    
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ticket_comments TO authenticated;
@@ -227,6 +236,7 @@ DROP POLICY IF EXISTS "Admins can manage permissions" ON public.permissions;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.permissions TO authenticated;
+GRANT ALL ON public.permissions TO service_role;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
@@ -253,6 +263,7 @@ DROP POLICY IF EXISTS "Admins can manage roles" ON public.roles;
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.roles TO authenticated;
+GRANT ALL ON public.roles TO service_role;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
@@ -279,6 +290,7 @@ DROP POLICY IF EXISTS "Admins can manage role permissions" ON public.role_permis
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.role_permissions TO authenticated;
+GRANT ALL ON public.role_permissions TO service_role;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
@@ -304,6 +316,7 @@ DROP POLICY IF EXISTS "Admins have full access to navigation items" ON public.si
 
 -- Grant basic table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sidebar_navigation TO authenticated;
+GRANT ALL ON public.sidebar_navigation TO service_role;
 
 -- Enable RLS
 ALTER TABLE public.sidebar_navigation ENABLE ROW LEVEL SECURITY;
@@ -1231,6 +1244,7 @@ DROP POLICY IF EXISTS "Admins can view cron logs" ON public.cron_job_logs;
 -- Grant table permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_preferences TO service_role;
 GRANT SELECT, DELETE ON public.customer_preferences TO authenticated;   
+GRANT SELECT ON public.customer_preferences TO anon;
 
 -- Enable RLS for new tables
 ALTER TABLE customer_preferences ENABLE ROW LEVEL SECURITY;
@@ -1240,6 +1254,12 @@ CREATE POLICY "Service role can manage customer preferences"
 ON customer_preferences 
 FOR ALL 
 TO service_role 
+USING (true);
+
+-- Allow anonymous read access to customer preferences
+CREATE POLICY "Anyone can view customer preferences"
+ON customer_preferences FOR SELECT
+TO anon
 USING (true);
 
 -- Customer Preferences: Users can view/edit their own preferences

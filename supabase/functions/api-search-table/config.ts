@@ -1,4 +1,4 @@
 export const config = {
-  RATE_LIMIT_REQUESTS: 100,
-  RATE_LIMIT_WINDOW_SECONDS: 60
+  DB_URL: Deno.env.get('DB_URL') ?? '',
+  SERVICE_ROLE_KEY: Deno.env.get('SERVICE_ROLE_KEY') ?? ''
 } 

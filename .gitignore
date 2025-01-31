@@ -28,6 +28,7 @@ dist-ssr
 .env.*
 .env.prod
 .env.test
+.env.local
 
 # Docker
 docker-compose.yml

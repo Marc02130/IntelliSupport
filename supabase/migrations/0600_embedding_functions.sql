@@ -84,7 +84,10 @@ $$;
 
 -- Function to batch messages
 CREATE OR REPLACE FUNCTION batch_messages()
-RETURNS void AS $$
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
     -- Log start
     INSERT INTO cron_job_logs (job_name, status) 
@@ -109,7 +112,10 @@ $$ LANGUAGE plpgsql;
 
 -- Process embedding queue
 CREATE OR REPLACE FUNCTION process_embedding_queue()
-RETURNS void AS $$
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
     batch_size INTEGER := 100;
 BEGIN
@@ -136,7 +142,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to route unassigned tickets
+-- Then update the routing function to use the mapping
 CREATE OR REPLACE FUNCTION route_tickets_job()
 RETURNS void
 LANGUAGE plpgsql
@@ -153,10 +159,11 @@ BEGIN
             SELECT 
                 t.id, 
                 t.organization_id,
-                ARRAY_AGG(tags.name) as tag_names
+                ARRAY_AGG(DISTINCT kd.name) as knowledge_domains -- Get mapped domains
             FROM tickets t
             LEFT JOIN ticket_tags tt ON tt.ticket_id = t.id
-            LEFT JOIN tags ON tags.id = tt.tag_id
+            LEFT JOIN tag_knowledge_mappings tkm ON tkm.tag_id = tt.tag_id
+            LEFT JOIN knowledge_domain kd ON kd.id = tkm.knowledge_domain_id
             WHERE t.assignee_id IS NULL
             AND t.status = 'open'
             GROUP BY t.id, t.organization_id
@@ -177,26 +184,21 @@ BEGIN
             AND u.is_active = true
             GROUP BY u.id, u.organization_id, kd.name, ukd.expertise
         )
-        -- Update tickets with assigned agents
         UPDATE tickets t
         SET 
             assignee_id = a.agent_id,
             updated_at = NOW()
         FROM unassigned_tickets ut
         JOIN available_agents a ON 
-            a.organization_id = ut.organization_id 
-            -- Match based on tag name matching knowledge domain name
-            AND LOWER(a.knowledge_domain) = ANY(
-                SELECT LOWER(unnest(ut.tag_names))
-            )
+            -- Remove organization match requirement
+            -- a.organization_id = ut.organization_id AND 
+            a.knowledge_domain = ANY(ut.knowledge_domains)
         WHERE t.id = ut.id
         AND a.current_ticket_count = (
             SELECT MIN(current_ticket_count)
             FROM available_agents a2
-            WHERE a2.organization_id = ut.organization_id
-            AND LOWER(a2.knowledge_domain) = ANY(
-                SELECT LOWER(unnest(ut.tag_names))
-            )
+            WHERE -- a2.organization_id = ut.organization_id AND
+            a2.knowledge_domain = ANY(ut.knowledge_domains)
         );
 
         -- Log success
@@ -209,7 +211,7 @@ BEGIN
         RAISE;
     END;
 END;
-$$;
+$$; 
 
 -- Teams
 -- Drop triggers on handle_team_change

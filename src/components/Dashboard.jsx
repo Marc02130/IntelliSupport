@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useParams, useOutletContext } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import DashboardBody from './DashboardBody'
 
 export default function Dashboard() {
-  const session = useOutletContext()
+  const { session, supabase } = useOutletContext()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [queryId, setQueryId] = useState(null)
   const [mode, setMode] = useState('dashboard') // 'dashboard', 'list', or 'record'
   const [recordId, setRecordId] = useState(null)
   const location = useLocation()
   const params = useParams()
+
+  if (!session) {
+    return <div>Loading...</div>
+  }
 
   // Log when component renders
   console.log('Dashboard rendering with params:', params, 'pathname:', location.pathname)
